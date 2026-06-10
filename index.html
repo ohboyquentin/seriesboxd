@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- Viewport mobile strict -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- Titre & description -->
+    <title>SeriesBoxd</title>
+    <meta name="description" content="Suis tes séries, partage tes critiques, découvre ce que regardent tes amis." />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#080808" />
+
+    <!-- iOS PWA — barre de statut transparente, icône, splash -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SeriesBoxd" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!-- Open Graph (partage sur réseaux sociaux / iMessage) -->
+    <meta property="og:title" content="SeriesBoxd" />
+    <meta property="og:description" content="Suis tes séries, partage tes critiques, découvre ce que regardent tes amis." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SeriesBoxd" />
+    <meta name="twitter:description" content="Suis tes séries, partage tes critiques, découvre ce que regardent tes amis." />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+
+    <!-- Empêche le tap highlight sur iOS -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      body { background: #080808; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
