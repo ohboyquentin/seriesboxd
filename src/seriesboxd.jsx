@@ -81,7 +81,7 @@ async function tmdbViaClaude(path, params = {}) {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-const posterUrl   = (path, size = "w300") => path ? `${IMG}/${size}${path}` : null;
+const posterUrl   = (path, size = "w185") => path ? `${IMG}/${size}${path}` : null;
 const backdropUrl = (path) => path ? `${IMG}/w780${path}` : null;
 
 function ErrorState({ message = "Impossible de charger les données", onRetry, compact = false }) {
@@ -2767,7 +2767,7 @@ export default function SeriesBoxd() {
 
           {/* HOME */}
           {tab === "home" && (
-            <div>
+            <div style={{ paddingTop: 16 }}>
 
               <ContinueWatchingSection library={library} watchedEpisodes={watchedEpisodes} onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "⏳ En cours de visionnage", inProgressList: library.filter(s => { const eps = watchedEpisodes[s.tmdbId]; return eps && Object.values(eps).some(Boolean) && !s.watched; }) })} />
               <HomeSection title="🔥 Popular this week" endpoint="/trending/tv/week" onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "🔥 Popular this week", endpoint: "/trending/tv/week" })} />
