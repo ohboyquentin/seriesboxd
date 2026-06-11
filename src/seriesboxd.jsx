@@ -2403,132 +2403,230 @@ export default function SeriesBoxd() {
     // Profil complet
     const profileFilled = !!(user.bio && user.location && user.avatar);
 
-    // ─── Règles badge par badge ──────────────────────────────────────────────
-    const rules = {
-      // Visionnage
-      premiers_pas:     totalEpisodes >= 1,
-      accro:            totalEpisodes >= 50,
-      seriphile:        totalEpisodes >= 100,
-      binge_master:     totalEpisodes >= 200,
-      marathonien:      totalEpisodes >= 500,
-      legende_canape:   totalEpisodes >= 1000,
-      oiseau_nuit:      hasNightActivity,
-      leve_tot:         hasEarlyActivity,
-      sprinteur:        false, // nécessite données intra-journée avancées
-      adieu:            completedSeries.some(s => (s.episodes || 0) > 100),
-      speedrunner:      false, // nécessite timestamps de début/fin
-      weekend:          false, // nécessite suivi par jour de semaine
-      insomniaque:      false, // nécessite 7 nuits consécutives
-      session_canap:    false, // nécessite durée cumulée intra-journée
+    // ─── Données temporelles supplémentaires ────────────────────────────────
+    const epsByDay = {};
+    Object.entries(watchedEpisodes).forEach(([sid, eps]) => {
+      Object.entries(eps || {}).forEach(([key, watched]) => {
+        if (!watched) return;
+        const entry = activityLog.find(a => a.label?.includes(sid) || a.label?.includes(key));
+        const date = entry ? new Date(entry.ts).toDateString() : new Date().toDateString();
+        epsByDay[date] = (epsByDay[date] || 0) + 1;
+      });
+    });
+    const maxEpsInDay = Math.max(0, ...Object.values(epsByDay));
 
-      // Notation
-      premiere_opinion: ratings.length >= 1,
-      coup_coeur:       fiveStars.length >= 20,
-      sans_pitie:       oneStar.length >= 10,
-      severe:           avgRating > 0 && avgRating < 2.5,
-      equilibre:        allStarValues.every(v => usedRatings.has(v)),
-      gout_luxe:        avgRating >= 4 && ratings.length >= 5,
-      mauvais_gout:     watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
-      pourquoi:         library.some(s => s.userRating === 1 && watchedEpisodes[s.tmdbId] && Object.values(watchedEpisodes[s.tmdbId]).filter(Boolean).length > 1),
-      fond_trou:        fiveStars.filter(s => (s.genres || []).some(g => g.toLowerCase().includes("drame"))).length >= 5,
-      pepite_cachee:    fiveStars.some(s => (s.voteCount || s.popularity || 9999) < 500),
+    const epsByWeekday = {};
+    activityLog.filter(a => a.type === "episode").forEach(a => {
+      const d = new Date(a.ts || 0);
+      const day = d.getDay();
+      const date = d.toDateString();
+      if (!epsByWeekday[date]) epsByWeekday[date] = { day, count: 0 };
+      epsByWeekday[date].count++;
+    });
+    const weekendDays = Object.values(epsByWeekday).filter(d => d.day === 0 || d.day === 5 || d.day === 6);
+    const weekendTotal = weekendDays.reduce((a, d) => a + d.count, 0);
 
-      // Critiques
-      premier_mot:      totalReviews >= 1,
-      critique_herbe:   totalReviews >= 10,
-      chroniqueur:      totalReviews >= 25,
-      plume_aceree:     totalReviews >= 50,
-      journaliste:      totalReviews >= 100,
-      cineaste:         totalReviews >= 200,
-      roman:            allReviews.some(r => (r.text || "").length > 1000),
-      critique_pop:     allReviews.some(r => (r.likes || 0) >= 50),
-      influenceur:      allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 500,
-      concis:           allReviews.some(r => (r.text||"").length < 100 && (r.likes||0) >= 20),
-      spoiler:          false, // nécessite timestamps de sortie épisodes
+    const nightDays = [...new Set(
+      activityLog.filter(a => { const h = new Date(a.ts||0).getHours(); return h >= 0 && h < 5; })
+        .map(a => new Date(a.ts||0).toDateString())
+    )].sort();
+    let maxNightStreak = 0, curNightStreak = 0;
+    for (let i = 0; i < nightDays.length; i++) {
+      if (i === 0) { curNightStreak = 1; continue; }
+      const prev = new Date(nightDays[i-1]), cur = new Date(nightDays[i]);
+      const diff = (cur - prev) / 86400000;
+      curNightStreak = diff === 1 ? curNightStreak + 1 : 1;
+      maxNightStreak = Math.max(maxNightStreak, curNightStreak);
+    }
+    const maxSessionEps = maxEpsInDay;
 
-      // Genres
-      curieux:          genresSeen.length >= 5,
-      explorateur:      genresSeen.length >= 10,
-      cameleon:         genresSeen.length >= 15,
-      omnivore:         genresSeen.length >= 18,
-      galactique:       watchedSeries.length >= 20 && genresSeen.length >= 10,
-      fan_crime:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
-      profiler:         seriesByGenre("crime").length >= 10,
-      spatial:          (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("sci"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
-      seul_mars:        seriesByGenre("sci").length >= 10,
-      clown:            seriesByGenre("comédie").length >= 10,
-      detective:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("policier"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
-      briseur:          seriesByGenre("drame").length >= 10,
-      ghostbuster:      seriesByGenre("horreur").length >= 10,
-      lover:            seriesByGenre("romance").length >= 10,
-      bagarreur:        seriesByGenre("action").length >= 10,
-      Magicien:         (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("fantasy")||g.toLowerCase().includes("fantaisie"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
-      chirurgien:       seriesByGenre("médical").length >= 5,
-      historien:        seriesByGenre("historique").length >= 10,
-      aventurier:       countries.length >= 10,
-      globe_trotter:    countries.length >= 20,
+    const seasonsSeen = new Set();
+    activityLog.forEach(a => {
+      const m = new Date(a.ts||0).getMonth();
+      if (m >= 2 && m <= 4) seasonsSeen.add("printemps");
+      else if (m >= 5 && m <= 7) seasonsSeen.add("ete");
+      else if (m >= 8 && m <= 10) seasonsSeen.add("automne");
+      else seasonsSeen.add("hiver");
+    });
 
-      // Bibliothèque
-      partez:           libSize >= 1,
-      collectionneur:   libSize >= 10,
-      bibliothecaire:   libSize >= 50,
-      archiviste:       libSize >= 100,
-      conservateur:     libSize >= 200,
-      watchlist_nais:   watchlistSize >= 10,
-      liste_100:        watchlistSize >= 100,
-      collection_sec:   listsCount >= 10,
-      curateur:         false, // nécessite likes sur listes
-      organise:         false, // nécessite croisement watchlist/listes
+    const autumnEps = activityLog.filter(a => {
+      const m = new Date(a.ts||0).getMonth();
+      return a.type === "episode" && m >= 8 && m <= 10;
+    }).length;
 
-      // Complétion
-      bienvenue:        profileFilled,
-      jusqu_bout:       completedSeries.length >= 1,
-      finisseur:        completedSeries.length >= 10,
-      sans_repit:       completedSeries.length >= 25,
-      papillonneur:     completedSeries.length >= 50,
-      collec_fins:      completedSeries.length >= 100,
-      cent_pourcent:    libSize > 0 && completedSeries.length === libSize,
-      legende:          false, // nécessite durée totale de visionnage
-      un_pourcent:      false, // badge spécial admin
+    const summerEps = activityLog.filter(a => {
+      const m = new Date(a.ts||0).getMonth();
+      return a.type === "episode" && m >= 5 && m <= 7;
+    }).length;
 
-      // Social
-      enchante:         false, // nécessite système social
-      reseau:           false,
-      cercle:           false,
-      populaire:        false,
-      diva:             false,
-      rok_star:         false,
-      fan:              totalLikesGiven >= 10,
-      ambassadeur:      totalLikesGiven >= 25,
-      premier_echange:  false,
-      debatteur:        false,
-      prem_interaction: totalLikesGiven >= 1,
+    const hibernationDone = Object.entries(epsByDay).some(([dateStr, count]) => {
+      const m = new Date(dateStr).getMonth();
+      return (m === 11 || m === 0 || m === 1) && count >= 8;
+    });
 
-      // Spéciaux
-      noctambule:       hasNightActivity,
-      en_bonne_voie:    maxStreak >= 7,
-      bonne_reso:       maxStreak >= 30,
-      inarretable:      maxStreak >= 100,
-      inépuisable:      maxStreak >= 365,
-      fidele:           daysSince >= 30,
-      ancien:           daysSince >= 365,
-      veteran:          daysSince >= 1095,
-      precurseur:       daysSince <= 365,
-      survivant:        completedSeries.filter(s => s.status === "Annulée" || s.cancelled).length >= 10,
-      parieur:          false,
-      testeur:          pilotOnly.length >= 20,
-      nostalgique:      false,
-      mauvaise_dec:     library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 50,
-      abandon:          pilotOnly.length >= 1,
-      rewatch:          Object.values(rewatchCounts).some(r => r.count >= 1),
-      printemps:        false,
-      automne:          false,
-      hibernation:      false,
-      derniere_min:     false,
-      noel:             activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===25 && d.getMonth()===11; }),
-      halloween:        false,
-      st_valentin:      activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===14 && d.getMonth()===1; }),
-    };
+    const abandonCount = pilotOnly.length;
+    const nostalgicCount = Object.values(rewatchCounts).filter(r => r.count >= 1).length;
+
+    const totalEpsAll = Object.values(watchedEpisodes).reduce((a, eps) => a + Object.values(eps||{}).filter(Boolean).length, 0);
+    const maxSingleSeriesEps = Math.max(0, ...Object.values(watchedEpisodes).map(eps => Object.values(eps||{}).filter(Boolean).length));
+    const leFideleCondition = totalEpsAll > 0 && (maxSingleSeriesEps / totalEpsAll) >= 0.5;
+    const lePuristeCondition = completedSeries.length >= 20 && abandonCount === 0;
+
+    const premiers_pas =   totalEpisodes >= 1;
+    const accro =          totalEpisodes >= 50;
+    const seriphile =      totalEpisodes >= 100;
+    const binge_master =   totalEpisodes >= 200;
+    const marathonien =    totalEpisodes >= 500;
+    const legende_canape = totalEpisodes >= 1000;
+    const oiseau_nuit =    hasNightActivity;
+    const leve_tot =       hasEarlyActivity;
+    const sprinteur =      maxEpsInDay >= 10;
+    const adieu =          completedSeries.some(s => (s.episodes || 0) > 100);
+    const speedrunner =    completedSeries.some(s => {
+      const seriesActs = activityLog.filter(a => a.label?.includes(s.title));
+      if (seriesActs.length < 2) return false;
+      const times = seriesActs.map(a => new Date(a.ts||0).getTime()).sort();
+      return (times[times.length-1] - times[0]) < 86400000;
+    });
+    const weekend =        weekendTotal >= 15;
+    const insomniaque =    maxNightStreak >= 7;
+    const session_canap =  maxSessionEps >= 18;
+
+      const rules = {
+        // Visionnage
+        premiers_pas, accro, seriphile, binge_master, marathonien, legende_canape,
+        oiseau_nuit, leve_tot, sprinteur, adieu, speedrunner, weekend, insomniaque, session_canap,
+
+        // Notation
+        premiere_opinion: ratings.length >= 1,
+        coup_coeur:       fiveStars.length >= 20,
+        sans_pitie:       oneStar.length >= 10,
+        severe:           avgRating > 0 && avgRating < 2.5,
+        equilibre:        allStarValues.every(v => usedRatings.has(v)),
+        gout_luxe:        avgRating >= 4 && ratings.length >= 5,
+        mauvais_gout:     watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
+        pourquoi:         library.some(s => s.userRating === 1 && watchedEpisodes[s.tmdbId] && Object.values(watchedEpisodes[s.tmdbId]).filter(Boolean).length > 1),
+        fond_trou:        fiveStars.filter(s => (s.genres || []).some(g => g.toLowerCase().includes("drame"))).length >= 5,
+        pepite_cachee:    fiveStars.some(s => (s.voteCount || s.popularity || 9999) < 500),
+
+        // Critiques
+        premier_mot:      totalReviews >= 1,
+        critique_herbe:   totalReviews >= 10,
+        chroniqueur:      totalReviews >= 25,
+        plume_aceree:     totalReviews >= 50,
+        journaliste:      totalReviews >= 100,
+        cineaste:         totalReviews >= 200,
+        roman:            allReviews.some(r => (r.text || "").length > 1000),
+        critique_pop:     allReviews.some(r => (r.likes || 0) >= 50),
+        influenceur:      allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 500,
+        concis:           allReviews.some(r => (r.text||"").length < 100 && (r.likes||0) >= 20),
+        spoiler:          activityLog.some(a => a.type === "episode" && (() => {
+          const h = new Date(a.ts||0).getHours();
+          return h < 6; // Épisode regardé très tôt le matin (approximation sortie)
+        })()),
+
+        // Genres
+        curieux:          genresSeen.length >= 5,
+        explorateur:      genresSeen.length >= 10,
+        cameleon:         genresSeen.length >= 15,
+        omnivore:         genresSeen.length >= 18,
+        galactique:       watchedSeries.length >= 20 && genresSeen.length >= 10,
+        fan_crime:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        profiler:         seriesByGenre("crime").length >= 10,
+        spatial:          (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("sci"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        seul_mars:        seriesByGenre("sci").length >= 10,
+        clown:            seriesByGenre("comédie").length >= 10,
+        detective:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("policier"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        briseur:          seriesByGenre("drame").length >= 10,
+        ghostbuster:      seriesByGenre("horreur").length >= 10,
+        lover:            seriesByGenre("romance").length >= 10,
+        bagarreur:        seriesByGenre("action").length >= 10,
+        Magicien:         (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("fantasy")||g.toLowerCase().includes("fantaisie"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        chirurgien:       seriesByGenre("médical").length >= 5,
+        historien:        seriesByGenre("historique").length >= 10,
+        aventurier:       countries.length >= 10,
+        globe_trotter:    countries.length >= 20,
+
+        // Bibliothèque
+        partez:           libSize >= 1,
+        collectionneur:   libSize >= 10,
+        bibliothecaire:   libSize >= 50,
+        archiviste:       libSize >= 100,
+        conservateur:     libSize >= 200,
+        watchlist_nais:   watchlistSize >= 10,
+        liste_100:        watchlistSize >= 100,
+        collection_sec:   listsCount >= 10,
+        curateur:         lists.some(l => (l.likes || 0) >= 1),
+        organise:         watchlistSize >= 5 && listsCount >= 3,
+
+        // Complétion
+        bienvenue:        profileFilled,
+        jusqu_bout:       completedSeries.length >= 1,
+        finisseur:        completedSeries.length >= 10,
+        sans_repit:       completedSeries.length >= 25,
+        papillonneur:     completedSeries.length >= 50,
+        collec_fins:      completedSeries.length >= 100,
+        cent_pourcent:    libSize > 0 && completedSeries.length === libSize,
+        legende:          totalEpisodes >= 5000,
+        un_pourcent:      false, // badge admin uniquement
+
+        // Social
+        enchante:         totalLikesGiven >= 1,
+        reseau:           totalLikesGiven >= 25,
+        cercle:           totalLikesGiven >= 10,
+        populaire:        allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 50,
+        diva:             allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 100,
+        rok_star:         allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 200,
+        fan:              totalLikesGiven >= 10,
+        ambassadeur:      totalLikesGiven >= 25,
+        premier_echange:  totalReviews >= 1,
+        debatteur:        totalReviews >= 50,
+        prem_interaction: totalLikesGiven >= 1,
+
+        // Spéciaux
+        noctambule:       hasNightActivity,
+        en_bonne_voie:    maxStreak >= 7,
+        bonne_reso:       maxStreak >= 30,
+        inarretable:      maxStreak >= 100,
+        inépuisable:      maxStreak >= 365,
+        fidele:           daysSince >= 30,
+        ancien:           daysSince >= 365,
+        veteran:          daysSince >= 1095,
+        precurseur:       daysSince <= 365,
+        survivant:        completedSeries.filter(s => s.status === "Annulée" || s.cancelled).length >= 10,
+        parieur:          library.some(s => (s.voteCount || s.popularity || 9999) < 100),
+        testeur:          pilotOnly.length >= 20,
+        nostalgique:      nostalgicCount >= 5,
+        mauvaise_dec:     library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 50,
+        abandon:          abandonCount >= 1,
+        rewatch:          Object.values(rewatchCounts).some(r => r.count >= 1),
+        printemps:        seasonsSeen.size >= 4,
+        automne:          autumnEps >= 50,
+        hibernation:      hibernationDone,
+        derniere_min:     false, // nécessite dates de sortie saisons TMDB
+        noel:             activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===25 && d.getMonth()===11; }),
+        halloween:        activityLog.filter(a => {
+          const d = new Date(a.ts||0);
+          return a.type === "episode" && d.getMonth() === 9 &&
+            watchedSeries.find(s => s.tmdbId === a.seriesId && (s.genres||[]).some(g => g.toLowerCase().includes("horreur")));
+        }).length >= 5,
+        st_valentin:      activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===14 && d.getMonth()===1; }),
+        summer:           summerEps >= 100,
+
+        // Secrets
+        oeuf_paques:      false, // nécessite compteur de clics sur posters
+        encore_reveillé:  hours.some(h => h >= 4 && h < 5),
+        boucle_inf:       Object.values(rewatchCounts).some(r => r.count >= 3),
+        amour_eternel:    false, // nécessite notes par saison
+        couch_potato:     maxEpsInDay >= 20,
+        call_911:         call911Condition,
+        batman:           batmanCondition,
+        indecis:          library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 20,
+        i_did_it:         completedSeries.some(s => (s.userRating||0) <= 1),
+        guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
+        le_fidele:        leFideleCondition,
+        le_puriste:       lePuristeCondition,
+      };
 
     const newIds = Object.entries(rules).filter(([,v]) => v).map(([k]) => k);
 
