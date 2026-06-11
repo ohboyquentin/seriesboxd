@@ -163,8 +163,12 @@ const friends = [
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 
-function computeStats(w) {
-  const totalMins = w.reduce((a, s) => a + (s.episodes || 10) * 42, 0);
+function computeStats(w, watchedEps = {}) {
+  const totalMins = w.reduce((a, s) => {
+    const watchedCount = watchedEps ? (Object.values(watchedEps[s.tmdbId] || {}).filter(Boolean).length) : 0;
+    const epCount = watchedCount > 0 ? watchedCount : (s.episodes || 10);
+    return a + epCount * 42;
+  }, 0);
   const gc = {};
   w.forEach(s => { gc[s.genre] = (gc[s.genre] || 0) + 1; });
   const genreData = Object.entries(gc).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -2305,7 +2309,8 @@ export default function SeriesBoxd() {
   const [showTagsPage, setShowTagsPage] = useState(false);
   const [tags, setTags] = useState({}); // { tmdbId: ["cozy", "culte", ...] }
   const [unlockedBadgeIds, setUnlockedBadgeIds] = useState(["premiers_pas","bienvenue","fidele","premier_mot","enchante"]);
-  const [newlyUnlocked, setNewlyUnlocked]       = useState(null); // badge à afficher en toast
+  const [badgeQueue, setBadgeQueue]             = useState([]); // file d'attente des badges à afficher
+  const [newlyUnlocked, setNewlyUnlocked]       = useState(null); // badge actuellement affiché en toast
   const prevUnlockedRef = useRef(null);
   const [confirm, setConfirm] = useState(null);
   const [rewatchCounts, setRewatchCounts] = useState({}); // { message, onConfirm }
@@ -2336,7 +2341,7 @@ export default function SeriesBoxd() {
     const totalReviews   = allReviews.length;
     const totalLikesGiven = activityLog.filter(a => a.type === "like").length;
     const watchedSeries  = library.filter(s => s.watched);
-    const libSize        = library.length;
+    const libSize        = library.filter(s => s.watched).length;
     const watchlistSize  = library.filter(s => s.inWatchlist).length;
 
     // Genres uniques des séries vues
@@ -2531,11 +2536,10 @@ export default function SeriesBoxd() {
     // On utilise une ref pour éviter les faux positifs au rechargement
     const prevIds = prevUnlockedRef.current;
     if (prevIds !== null) {
-      // prevIds est null au premier render : on ne montre pas de toast
       const justUnlocked = newIds.filter(id => !prevIds.includes(id));
       if (justUnlocked.length > 0) {
-        const badge = ALL_BADGES.find(b => b.id === justUnlocked[0]);
-        if (badge) setNewlyUnlocked(badge);
+        const newBadges = justUnlocked.map(id => ALL_BADGES.find(b => b.id === id)).filter(Boolean);
+        if (newBadges.length > 0) setBadgeQueue(prev => [...prev, ...newBadges]);
       }
     }
     prevUnlockedRef.current = newIds;
@@ -2663,7 +2667,7 @@ export default function SeriesBoxd() {
       const cur = prev[id] || { count: 0, lastDate: null };
       return { ...prev, [id]: { count: cur.count + 1, lastDate: new Date().toISOString().slice(0, 10) } };
     });
-    addActivity("rewatch", "Tu as rewatche " + title);
+    addActivity("rewatch", "Tu as rewatch" + title);
   };
 
   const handleDeleteReview = (sid, rid) => {
@@ -2692,6 +2696,16 @@ export default function SeriesBoxd() {
   const handleRemoveTag = (tmdbId, tag) => {
     setTags(prev => ({ ...prev, [tmdbId]: (prev[tmdbId] || []).filter(t => t !== tag) }));
   };
+
+  // Défile les badges un par un — 3 secondes par badge, 0.5s entre chaque
+  useEffect(() => {
+    if (badgeQueue.length === 0 || newlyUnlocked) return;
+    const next = badgeQueue[0];
+    setNewlyUnlocked(next);
+    setBadgeQueue(prev => prev.slice(1));
+    const timer = setTimeout(() => setNewlyUnlocked(null), 3000);
+    return () => clearTimeout(timer);
+  }, [badgeQueue, newlyUnlocked]);
 
   const watched = library.filter(s => s.watched);
   const NAV_ICONS = {
@@ -2894,14 +2908,14 @@ export default function SeriesBoxd() {
               )}
 
               {(() => {
-                const stats = computeStats(watched);
+                const stats = computeStats(watched, watchedEpisodes);
                 return (
                   <>
                     {/* Stats */}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8, padding: "0 20px" }}>
                       {[
                         { n: watched.length, label: "Vues" },
-                        { n: watched.reduce((a,s)=>a+(s.episodes||0),0), label: "Épisodes" },
+                        { n: Object.values(watchedEpisodes).reduce((acc, eps) => acc + Object.values(eps).filter(Boolean).length, 0), label: "Épisodes" },
                         { n: formatTime(stats.totalMins), label: "Temps" },
                         { n: "12", label: "Abonnés" },
                       ].map((stat, i) => (
@@ -2949,7 +2963,7 @@ export default function SeriesBoxd() {
               </div>
 
               {(() => {
-                const stats = computeStats(watched);
+                const stats = computeStats(watched, watchedEpisodes);
                 return (
                   <>
                     <div style={{ marginBottom: 24, padding: "0 20px" }}>
@@ -3018,13 +3032,16 @@ export default function SeriesBoxd() {
         {/* TV Shows Page */}
         {/* Toast badge débloqué */}
         {newlyUnlocked && (
-          <div onClick={() => setNewlyUnlocked(null)} style={{ position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#111", border: `1px solid ${newlyUnlocked.color}66`, borderRadius: 16, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12, boxShadow: `0 8px 32px rgba(0,0,0,.8), 0 0 20px ${newlyUnlocked.color}33`, maxWidth: 320, cursor: "pointer", animation: "slideInUp .3s ease" }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${newlyUnlocked.color}22`, border: `2px solid ${newlyUnlocked.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{newlyUnlocked.icon}</div>
-            <div>
+          <div onClick={() => setNewlyUnlocked(null)} style={{ position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#111", border: `1px solid ${newlyUnlocked.color}66`, borderRadius: 16, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12, boxShadow: `0 8px 32px rgba(0,0,0,.8), 0 0 20px ${newlyUnlocked.color}33`, maxWidth: 320, cursor: "pointer", animation: "slideInUp .3s ease", width: "calc(100% - 40px)" }}>
+            <HexBadge badge={newlyUnlocked} unlocked size={44} />
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, color: newlyUnlocked.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>Badge débloqué 🎉</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginTop: 2 }}>{newlyUnlocked.name}</div>
-              <div style={{ fontSize: 11, color: "#555", marginTop: 1 }}>{newlyUnlocked.desc}</div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{newlyUnlocked.desc}</div>
             </div>
+            {badgeQueue.length > 0 && (
+              <div style={{ background: newlyUnlocked.color + "33", border: `1px solid ${newlyUnlocked.color}66`, borderRadius: 12, padding: "3px 8px", fontSize: 11, color: newlyUnlocked.color, fontWeight: 700, flexShrink: 0 }}>+{badgeQueue.length}</div>
+            )}
           </div>
         )}
         {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
