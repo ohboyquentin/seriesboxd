@@ -2492,7 +2492,18 @@ export default function SeriesBoxd() {
     const insomniaque =    maxNightStreak >= 7;
     const session_canap =  maxSessionEps >= 18;
 
-      const rules = {
+    const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
+    let count48 = 0;
+    for (let i = 0; i < sortedEpActs.length; i++) {
+      const start = new Date(sortedEpActs[i].ts||0).getTime();
+      const inWindow = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 172800000; }).length;
+      count48 = Math.max(count48, inWindow);
+    }
+    const call911Condition = count48 >= 50;
+    const batHours = activityLog.filter(a => { const d = new Date(a.ts||0); return d.getHours() >= 3 && d.getHours() < 5; }).map(a => new Date(a.ts||0).getDay());
+    const batmanCondition = hours.some(h => h >= 3 && h < 5) && batHours.some(d => d >= 1 && d <= 4);
+
+    const rules = {
         // Visionnage
         premiers_pas, accro, seriphile, binge_master, marathonien, legende_canape,
         oiseau_nuit, leve_tot, sprinteur, adieu, speedrunner, weekend, insomniaque, session_canap,
