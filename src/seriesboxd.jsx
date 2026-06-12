@@ -403,7 +403,7 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
       {/* Grille — identique à HomeSection */}
       <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: showAll ? "visible" : "auto", flexWrap: showAll ? "wrap" : "nowrap" }}>
         {displayed.map(s => {
-          const { watchedCount, remaining, pct } = getProgress(s);
+          const { pct } = getProgress(s);
           return (
             <div key={s.tmdbId} style={{ width: 100, flexShrink: 0 }}>
               <div
@@ -432,10 +432,9 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
                   }} />
                 </div>
               </div>
-              {/* Compteur sous le poster */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, padding: "0 2px" }}>
-                <div style={{ fontSize: 10, color: "#eca6ee" }}>{watchedCount} vus</div>
-                <div style={{ fontSize: 10, color: "#444" }}>{remaining} restants</div>
+              {/* Pourcentage de progression sous le poster */}
+              <div style={{ textAlign: "center", marginTop: 5 }}>
+                <div style={{ fontSize: 11, color: "#eca6ee", fontWeight: 600 }}>{pct}%</div>
               </div>
             </div>
           );
