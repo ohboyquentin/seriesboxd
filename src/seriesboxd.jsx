@@ -403,7 +403,7 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
       {/* Grille — identique à HomeSection */}
       <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: showAll ? "visible" : "auto", flexWrap: showAll ? "wrap" : "nowrap" }}>
         {displayed.map(s => {
-          const { watchedCount, remaining, pct } = getProgress(s);
+          const { pct } = getProgress(s);
           return (
             <div key={s.tmdbId} style={{ width: 100, flexShrink: 0 }}>
               <div
@@ -432,10 +432,9 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
                   }} />
                 </div>
               </div>
-              {/* Compteur sous le poster */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, padding: "0 2px" }}>
-                <div style={{ fontSize: 10, color: "#eca6ee" }}>{watchedCount} vus</div>
-                <div style={{ fontSize: 10, color: "#444" }}>{remaining} restants</div>
+              {/* Pourcentage de progression sous le poster */}
+              <div style={{ textAlign: "center", marginTop: 5 }}>
+                <div style={{ fontSize: 11, color: "#eca6ee", fontWeight: 600 }}>{pct}%</div>
               </div>
             </div>
           );
@@ -600,7 +599,7 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
@@ -695,6 +694,14 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           })),
         })));
         setOpenSeason(seasonNums[0] || 1);
+        // Met à jour le compteur total d'épisodes/saisons dans la library
+        // (number_of_episodes n'existe que sur l'endpoint détail, pas sur search/trending)
+        if (full.number_of_episodes) {
+          onSeriesMetaLoaded?.(series.tmdbId, {
+            episodes: full.number_of_episodes,
+            seasons: full.number_of_seasons || series.seasons,
+          });
+        }
       } catch(e) { setDetailError(true); console.error(e); }
       finally { setLoading(false); }
     })();
@@ -2771,6 +2778,10 @@ export default function SeriesBoxd() {
     setExtraReviews(p => ({ ...p, [sid]: [...cur, { id: Date.now(), user: user.name, avatar: user.name[0].toUpperCase(), rating: review.rating, text: review.text, likes: 0, liked: false, date: "Aujourd'hui" }] }));
     if (series) addActivity("review", `Tu as review ${series.title}`);
   };
+  const handleSeriesMetaLoaded = (tmdbId, meta) => {
+    setLibrary(prev => prev.map(s => s.tmdbId === tmdbId ? { ...s, ...meta } : s));
+  };
+
   const handleRewatch = (id, title) => {
     setRewatchCounts(prev => {
       const cur = prev[id] || { count: 0, lastDate: null };
@@ -2858,7 +2869,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
