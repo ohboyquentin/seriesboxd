@@ -382,9 +382,9 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
   const getProgress = (s) => {
     const eps = watchedEpisodes[s.tmdbId] || {};
     const allKeys = Object.keys(eps);
-    // Total réel = nombre d'épisodes chargés depuis TMDB (les clés), fallback sur s.episodes
-    const total = allKeys.length > 0 ? allKeys.length : (s.episodes > 0 ? s.episodes : (s.seasons ? s.seasons * 10 : 10));
     const watchedCount = allKeys.filter(k => eps[k]).length;
+    // Total réel = nombre total d'épisodes de la série (TMDB), pas le nombre de clés cochées
+    const total = s.episodes > 0 ? s.episodes : (s.seasons ? s.seasons * 10 : Math.max(watchedCount, 10));
     const remaining = Math.max(total - watchedCount, 0);
     const pct = total > 0 ? Math.round((watchedCount / total) * 100) : 0;
     return { watchedCount, total, remaining, pct };
@@ -403,7 +403,7 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
       {/* Grille — identique à HomeSection */}
       <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: showAll ? "visible" : "auto", flexWrap: showAll ? "wrap" : "nowrap" }}>
         {displayed.map(s => {
-          const { pct } = getProgress(s);
+          const { watchedCount, remaining, pct } = getProgress(s);
           return (
             <div key={s.tmdbId} style={{ width: 100, flexShrink: 0 }}>
               <div
@@ -432,9 +432,10 @@ function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll })
                   }} />
                 </div>
               </div>
-              {/* Pourcentage de progression sous le poster */}
-              <div style={{ textAlign: "center", marginTop: 5 }}>
-                <div style={{ fontSize: 11, color: "#eca6ee", fontWeight: 600 }}>{pct}%</div>
+              {/* Compteur sous le poster */}
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, padding: "0 2px" }}>
+                <div style={{ fontSize: 10, color: "#eca6ee" }}>{watchedCount} vus</div>
+                <div style={{ fontSize: 10, color: "#444" }}>{remaining} restants</div>
               </div>
             </div>
           );
