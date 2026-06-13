@@ -2356,11 +2356,11 @@ export default function SeriesBoxd() {
 
     // Séries terminées = tous les épisodes cochés
     const completedSeries = library.filter(s => {
-      const eps = watchedEpisodes[s.tmdbId];
-      if (!eps) return s.watched;
-      const total = Object.keys(eps).length;
-      const done  = Object.values(eps).filter(Boolean).length;
-      return total > 0 && done === total;
+      const eps = watchedEpisodes[s.tmdbId] || {};
+      const done = Object.values(eps).filter(Boolean).length;
+      const total = s.episodes > 0 ? s.episodes : null;
+      if (total !== null) return done >= total && total > 0;
+      return s.watched; // fallback si le total réel n'est pas encore connu
     });
 
     // Séries vues par genre
@@ -2538,10 +2538,14 @@ export default function SeriesBoxd() {
         critique_pop:     allReviews.some(r => (r.likes || 0) >= 50),
         influenceur:      allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 500,
         concis:           allReviews.some(r => (r.text||"").length < 100 && (r.likes||0) >= 20),
-        spoiler:          activityLog.some(a => a.type === "episode" && (() => {
-          const h = new Date(a.ts||0).getHours();
-          return h < 6; // Épisode regardé très tôt le matin (approximation sortie)
-        })()),
+        spoiler:          (() => {
+          const episodeActs = activityLog.filter(a => a.type === "episode" && a.ts);
+          const reviewActs  = activityLog.filter(a => a.type === "review" && a.ts);
+          return reviewActs.some(r => {
+            const rt = new Date(r.ts).getTime();
+            return episodeActs.some(e => Math.abs(rt - new Date(e.ts).getTime()) <= 60 * 60 * 1000);
+          });
+        })(),
 
         // Genres
         curieux:          genresSeen.length >= 5,
