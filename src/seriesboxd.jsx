@@ -971,7 +971,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
 
 // ─── SEARCH PAGE ──────────────────────────────────────────────────────────────
 
-function SearchPage({ onOpen }) {
+function SearchPage({ onOpen, onViewProfile, currentUserId }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -980,6 +980,19 @@ function SearchPage({ onOpen }) {
   const [filters, setFilters] = useState({ genres: [], minRating: 0, yearFrom: "", yearTo: "", status: "" });
   const [trending, setTrending] = useState([]);
   const debounceRef = useRef(null);
+  const [userResults, setUserResults] = useState([]);
+  const [followMapSearch, setFollowMapSearch] = useState({});
+
+  const toggleFollowSearch = async (targetId) => {
+    if (!currentUserId) return;
+    if (followMapSearch[targetId]) {
+      await supabase.from("follows").delete().eq("follower_id", currentUserId).eq("following_id", targetId);
+      setFollowMapSearch(p => ({ ...p, [targetId]: false }));
+    } else {
+      await supabase.from("follows").insert({ follower_id: currentUserId, following_id: targetId });
+      setFollowMapSearch(p => ({ ...p, [targetId]: true }));
+    }
+  };
 
   const activeCount = filters.genres.length + (filters.minRating > 0 ? 1 : 0) + (filters.yearFrom || filters.yearTo ? 1 : 0) + (filters.status ? 1 : 0);
   const toggleGenre = g => setFilters(f => ({ ...f, genres: f.genres.includes(g) ? f.genres.filter(x => x !== g) : [...f.genres, g] }));
@@ -991,12 +1004,24 @@ function SearchPage({ onOpen }) {
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    if (!query.trim()) { setResults([]); setSearchError(false); return; }
+    if (!query.trim()) { setResults([]); setUserResults([]); setSearchError(false); return; }
     setLoading(true);
     setSearchError(false);
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await tmdbViaClaude("/search/tv", { query });
+        const [tmdbData, usersData] = await Promise.all([
+          tmdbViaClaude("/search/tv", { query }),
+          searchUsers(query),
+        ]);
+        const filteredUsers = usersData.filter(u => u.id !== currentUserId);
+        setUserResults(filteredUsers);
+        if (currentUserId && filteredUsers.length > 0) {
+          const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", filteredUsers.map(u => u.id));
+          const map = {};
+          (myF || []).forEach(r => { map[r.following_id] = true; });
+          setFollowMapSearch(map);
+        }
+        const data = tmdbData;
         let shows = (data.results || []).map(adaptShow);
         if (filters.minRating > 0) shows = shows.filter(s => s.rating >= filters.minRating);
         if (filters.yearFrom) shows = shows.filter(s => s.year >= parseInt(filters.yearFrom));
@@ -1014,7 +1039,7 @@ function SearchPage({ onOpen }) {
     <div style={{ padding: "0 20px" }}>
       <div style={{ position: "relative", marginBottom: 12 }}>
         <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#555", fontSize: 16 }}>🔍</span>
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Chercher une série..." style={{ width: "100%", padding: "13px 52px 13px 42px", background: "#111", border: `1px solid ${showFilters ? ORANGE_BORDER : "#1e1e1e"}`, borderRadius: 12, color: "#fff", fontSize: 14, outline: "none" }} />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Chercher une série ou un ami..." style={{ width: "100%", padding: "13px 52px 13px 42px", background: "#111", border: `1px solid ${showFilters ? ORANGE_BORDER : "#1e1e1e"}`, borderRadius: 12, color: "#fff", fontSize: 14, outline: "none" }} />
         <button onClick={() => setShowFilters(!showFilters)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: activeCount > 0 ? ORANGE_DIM : "transparent", border: `1px solid ${activeCount > 0 ? ORANGE_BORDER : "#2a2a2a"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: activeCount > 0 ? ORANGE : "#555", fontSize: 13, display: "flex", alignItems: "center", gap: 5 }}>
           <span>⚙</span>
           {activeCount > 0 && <span style={{ background: ORANGE, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{activeCount}</span>}
@@ -1076,7 +1101,29 @@ function SearchPage({ onOpen }) {
                 <ErrorState message="La recherche a échoué" onRetry={() => setQuery(q => q)} />
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: "#444", marginBottom: 12 }}>{results.length} résultat{results.length!==1?"s":""}{activeCount>0&&<span style={{ color: ORANGE }}> · {activeCount} filtre{activeCount>1?"s":""}</span>}</div>
+                  {userResults.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 12 }}>Utilisateurs</div>
+                  {userResults.map(u => (
+                    <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #111" }}>
+                      <div onClick={() => onViewProfile?.(u.id)} style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18, color: "#fff", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                        {u.avatar ? <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(u.name||"?")[0].toUpperCase()}</span>}
+                      </div>
+                      <div onClick={() => onViewProfile?.(u.id)} style={{ flex: 1, cursor: "pointer" }}>
+                        <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{u.name}</div>
+                        <div style={{ color: "#555", fontSize: 12 }}>@{u.pseudo} · {(u.library||[]).filter(s => s.watched).length} séries vues</div>
+                      </div>
+                      {currentUserId && (
+                        <button onClick={() => toggleFollowSearch(u.id)} style={{ padding: "7px 14px", borderRadius: 16, background: followMapSearch[u.id] ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (followMapSearch[u.id] ? "#2a2a2a" : ORANGE_BORDER), color: followMapSearch[u.id] ? "#666" : ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                          {followMapSearch[u.id] ? "Suivi ✓" : "Suivre"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {results.length > 0 && <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".07em", marginTop: 16, marginBottom: 8 }}>Séries</div>}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: "#444", marginBottom: 12 }}>{results.length} résultat{results.length!==1?"s":""}{activeCount>0&&<span style={{ color: ORANGE }}> · {activeCount} filtre{activeCount>1?"s":""}</span>}</div>
                   {results.length > 0 ? results.map(s => (
                 <div key={s.tmdbId} onClick={() => onOpen(s)} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: "1px solid #141414", cursor: "pointer" }}>
                   <div style={{ width: 48, height: 72, borderRadius: 8, overflow: "hidden", background: "#1a1a1a", flexShrink: 0 }}>
@@ -2295,6 +2342,291 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel, dang
   );
 }
 
+
+// ─── SOCIAL HELPERS ───────────────────────────────────────────────────────────
+
+async function fetchFollows(userId) {
+  const [{ data: following }, { data: followers }] = await Promise.all([
+    supabase.from("follows").select("following_id").eq("follower_id", userId),
+    supabase.from("follows").select("follower_id").eq("following_id", userId),
+  ]);
+  return {
+    followingIds: (following || []).map(r => r.following_id),
+    followerIds:  (followers || []).map(r => r.follower_id),
+  };
+}
+
+async function searchUsers(query) {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, data, updated_at")
+    .limit(20);
+  const q = query.toLowerCase();
+  return (data || [])
+    .filter(row => {
+      const name   = (row.data?.name   || "").toLowerCase();
+      const pseudo = (row.data?.pseudo || "").toLowerCase();
+      return name.includes(q) || pseudo.includes(q);
+    })
+    .map(row => ({
+      id: row.id,
+      name: row.data?.name || "Utilisateur",
+      pseudo: row.data?.pseudo || row.data?.name || "user",
+      avatar: row.data?.avatar || null,
+      bio: row.data?.bio || "",
+      favGenres: row.data?.favGenres || [],
+      pinnedBadgeIds: row.data?.pinnedBadgeIds || [],
+      unlockedBadgeIds: row.data?.unlockedBadgeIds || [],
+      library: row.data?.library || [],
+      activityLog: row.data?.activityLog || [],
+      extraReviews: row.data?.extraReviews || {},
+      watchedEpisodes: row.data?.watchedEpisodes || {},
+    }));
+}
+
+async function fetchUserProfile(userId) {
+  const { data } = await supabase
+    .from("profiles").select("id, data, updated_at").eq("id", userId).single();
+  if (!data) return null;
+  return {
+    id: data.id,
+    name: data.data?.name || "Utilisateur",
+    pseudo: data.data?.pseudo || data.data?.name || "user",
+    avatar: data.data?.avatar || null,
+    bio: data.data?.bio || "",
+    favGenres: data.data?.favGenres || [],
+    pinnedBadgeIds: data.data?.pinnedBadgeIds || [],
+    unlockedBadgeIds: data.data?.unlockedBadgeIds || [],
+    library: data.data?.library || [],
+    activityLog: data.data?.activityLog || [],
+    extraReviews: data.data?.extraReviews || {},
+    watchedEpisodes: data.data?.watchedEpisodes || {},
+    favShows: data.data?.favShows || [],
+  };
+}
+
+function formatRelativeTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "A l'instant";
+  if (m < 60) return "Il y a " + m + " min";
+  const h = Math.floor(m / 60);
+  if (h < 24) return "Il y a " + h + "h";
+  const d = Math.floor(h / 24);
+  if (d < 7) return "Il y a " + d + "j";
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+// ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
+function PublicProfilePage({ userId, currentUserId, onOpen, onClose }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const [p, { followingIds, followerIds }] = await Promise.all([
+        fetchUserProfile(userId),
+        fetchFollows(userId),
+      ]);
+      setProfile(p);
+      setFollowerCount(followerIds.length);
+      setFollowingCount(followingIds.length);
+      if (currentUserId) {
+        const { data } = await supabase.from("follows").select("id")
+          .eq("follower_id", currentUserId).eq("following_id", userId).single();
+        setIsFollowing(!!data);
+      }
+      setLoading(false);
+    })();
+  }, [userId]);
+
+  const handleFollow = async () => {
+    if (!currentUserId || followLoading) return;
+    setFollowLoading(true);
+    if (isFollowing) {
+      await supabase.from("follows").delete().eq("follower_id", currentUserId).eq("following_id", userId);
+      setIsFollowing(false);
+      setFollowerCount(n => n - 1);
+    } else {
+      await supabase.from("follows").insert({ follower_id: currentUserId, following_id: userId });
+      setIsFollowing(true);
+      setFollowerCount(n => n + 1);
+    }
+    setFollowLoading(false);
+  };
+
+  if (loading) return (
+    <div style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, display: "flex", alignItems: "center", justifyContent: "center", maxWidth: 440, margin: "0 auto" }}><Spinner /></div>
+  );
+  if (!profile) return null;
+
+  const watched = (profile.library || []).filter(s => s.watched);
+  const rated   = watched.filter(s => s.userRating);
+  const totalEps = Object.values(profile.watchedEpisodes || {}).reduce((a, eps) => a + Object.values(eps).filter(Boolean).length, 0);
+  const recentActivity = (profile.activityLog || []).slice(0, 8);
+  const favShows = profile.favShows?.length ? profile.favShows : watched.slice(0, 4);
+  const ic = (sym, size=18) => <span style={{ color: ORANGE, fontSize: size, lineHeight: 1 }}>{sym}</span>;
+  const ICONS = { watch: ic("\u25c9"), rate: ic("\u2605",20), review: ic("\u270e"), like: ic("\u2665"), episode: ic("\u25b6",15), watchlist: ic("\u25c8"), list: ic("\u2261"), rewatch: ic("\u21ba") };
+
+  return (
+    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+      <div style={{ position: "sticky", top: 0, background: "rgba(8,8,8,0.95)", backdropFilter: "blur(12px)", zIndex: 10, padding: "52px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #111" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Profil</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>\u00d7</button>
+      </div>
+
+      <div style={{ textAlign: "center", padding: "24px 20px 16px" }}>
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 30, color: "#fff", margin: "0 auto 14px", overflow: "hidden", border: "3px solid #1a1a1a" }}>
+          {profile.avatar ? <img src={profile.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(profile.name || "?")[0].toUpperCase()}</span>}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{profile.name}</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>@{profile.pseudo}</div>
+        {profile.bio && <div style={{ fontSize: 13, color: "#888", marginTop: 8, lineHeight: 1.5 }}>{profile.bio}</div>}
+        {currentUserId && currentUserId !== userId && (
+          <button onClick={handleFollow} disabled={followLoading} style={{ marginTop: 16, padding: "10px 28px", borderRadius: 20, background: isFollowing ? "#1a1a1a" : ORANGE_DIM, border: "1.5px solid " + (isFollowing ? "#2a2a2a" : ORANGE_BORDER), color: isFollowing ? "#666" : ORANGE, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            {followLoading ? "..." : isFollowing ? "Ne plus suivre" : "Suivre"}
+          </button>
+        )}
+      </div>
+
+      {profile.favGenres?.length > 0 && (
+        <div style={{ margin: "0 20px 16px", padding: "14px 16px", background: "#1a1a1a", border: "1px solid rgba(219,157,228,0.94)", borderRadius: 14 }}>
+          <div style={{ fontSize: 10, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>\u2726 Genres favoris</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {profile.favGenres.map(g => <span key={g} style={{ background: "#2a2a2a", border: "1px solid " + ORANGE_BORDER, color: "#fff", fontSize: 12, padding: "5px 12px", borderRadius: 20 }}>{g}</span>)}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8, padding: "0 20px" }}>
+        {[{ n: watched.length, label: "Vues" }, { n: totalEps, label: "\u00c9pisodes" }, { n: followerCount, label: "Abonn\u00e9s" }, { n: followingCount, label: "Abonn" }].map((stat, i) => (
+          <div key={i} style={{ background: "#0e0e0e", borderRadius: 12, padding: "10px 6px", textAlign: "center", border: "1px solid #181818" }}>
+            <div style={{ fontSize: 9, color: "#555", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".04em" }}>{stat.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: ORANGE, fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1 }}>{stat.n}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 24, padding: "0 20px" }}>
+        {[0,1,2,3].map(i => {
+          const bid = profile.pinnedBadgeIds?.[i];
+          const badge = bid ? ALL_BADGES.find(b => b.id === bid) : null;
+          return (
+            <div key={i} style={{ background: "#0e0e0e", borderRadius: 12, padding: "10px 6px", border: badge ? "1px solid " + badge.color + "33" : "1px dashed #1e1e1e", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              {badge ? <><HexBadge badge={badge} unlocked size={38} /><div style={{ fontSize: 8, color: badge.color, textAlign: "center", lineHeight: 1.2, fontWeight: 600 }}>{badge.name}</div></> : <span style={{ fontSize: 16, opacity: 0.12 }}>{"\u2b21"}</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {favShows.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Favorite TV Shows</div>
+          <div style={{ display: "flex", gap: 10, padding: "0 20px" }}>
+            {favShows.slice(0,4).map(s => <div key={s.tmdbId||s.id} style={{ flex: 1 }}><PosterCard series={s} onOpen={onOpen} /></div>)}
+          </div>
+        </div>
+      )}
+
+      {rated.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Derni\u00e8res notes</div>
+          <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+            {rated.map(s => <div key={s.tmdbId||s.id} style={{ width: 90, flexShrink: 0 }}><PosterCard series={s} onOpen={onOpen} /></div>)}
+          </div>
+        </div>
+      )}
+
+      {recentActivity.length > 0 && (
+        <div style={{ padding: "0 20px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Activit\u00e9 r\u00e9cente</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {recentActivity.map((entry, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
+                <div style={{ width: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{ICONS[entry.type] || ic("\u25c9")}</div>
+                <div style={{ flex: 1, color: "#ccc", fontSize: 13, lineHeight: 1.4 }}>{entry.label}</div>
+                <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(entry.ts)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FOLLOW LIST PAGE ─────────────────────────────────────────────────────────
+function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [followingMap, setFollowingMap] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      const col = type === "followers" ? "follower_id" : "following_id";
+      const filterCol = type === "followers" ? "following_id" : "follower_id";
+      const { data } = await supabase.from("follows").select(col).eq(filterCol, userId);
+      const ids = (data || []).map(r => r[col]);
+      if (ids.length === 0) { setLoading(false); return; }
+      const { data: profiles } = await supabase.from("profiles").select("id,data").in("id", ids);
+      setUsers((profiles || []).map(p => ({ id: p.id, name: p.data?.name || "Utilisateur", pseudo: p.data?.pseudo || p.data?.name || "user", avatar: p.data?.avatar || null, watched: (p.data?.library || []).filter(s => s.watched).length })));
+      if (currentUserId) {
+        const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", ids);
+        const map = {};
+        (myF || []).forEach(r => { map[r.following_id] = true; });
+        setFollowingMap(map);
+      }
+      setLoading(false);
+    })();
+  }, [userId, type]);
+
+  const toggleFollow = async (targetId) => {
+    if (!currentUserId) return;
+    if (followingMap[targetId]) {
+      await supabase.from("follows").delete().eq("follower_id", currentUserId).eq("following_id", targetId);
+      setFollowingMap(p => ({ ...p, [targetId]: false }));
+    } else {
+      await supabase.from("follows").insert({ follower_id: currentUserId, following_id: targetId });
+      setFollowingMap(p => ({ ...p, [targetId]: true }));
+    }
+  };
+
+  return (
+    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 920, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+      <div style={{ padding: "52px 20px 16px" }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{title}</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{users.length} {type === "followers" ? "abonn\u00e9" : "abonnement"}{users.length !== 1 ? "s" : ""}</div>
+      </div>
+      {loading ? <Spinner /> : users.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 20px", color: "#333", fontSize: 14 }}>Aucun {type === "followers" ? "abonn\u00e9" : "abonnement"} pour l'instant</div>
+      ) : (
+        <div style={{ padding: "0 20px" }}>
+          {users.map(u => (
+            <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #111" }}>
+              <div onClick={() => onViewProfile(u.id)} style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18, color: "#fff", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                {u.avatar ? <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(u.name||"?")[0].toUpperCase()}</span>}
+              </div>
+              <div onClick={() => onViewProfile(u.id)} style={{ flex: 1, cursor: "pointer" }}>
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{u.name}</div>
+                <div style={{ color: "#555", fontSize: 12 }}>@{u.pseudo} \u00b7 {u.watched} s\u00e9ries vues</div>
+              </div>
+              {currentUserId && currentUserId !== u.id && (
+                <button onClick={() => toggleFollow(u.id)} style={{ padding: "7px 14px", borderRadius: 16, background: followingMap[u.id] ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (followingMap[u.id] ? "#2a2a2a" : ORANGE_BORDER), color: followingMap[u.id] ? "#666" : ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  {followingMap[u.id] ? "Suivi \u2713" : "Suivre"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SeriesBoxd() {
   const [onboarded, setOnboarded] = useState(false);
   const [user, setUser] = useState({ name: "Alex", genres: [], platforms: [] });
@@ -2311,6 +2643,13 @@ export default function SeriesBoxd() {
   const [seeAllPage, setSeeAllPage] = useState(null);
   const [showListsPage, setShowListsPage] = useState(false);
   const [showBadgesPage, setShowBadgesPage] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(null);
+  const [showFollowersPage, setShowFollowersPage] = useState(false);
+  const [showFollowingPage, setShowFollowingPage] = useState(false);
+  const [followingIds, setFollowingIds] = useState([]);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [friendsActivity, setFriendsActivity] = useState([]);
+  const [friendsActivityLoading, setFriendsActivityLoading] = useState(false);
   const [showReviewsPage, setShowReviewsPage] = useState(false);
   const [showSettingsPage, setShowSettingsPage] = useState(false);
   const [showTagsPage, setShowTagsPage] = useState(false);
@@ -2593,12 +2932,12 @@ export default function SeriesBoxd() {
         un_pourcent:      false, // badge admin uniquement
 
         // Social
-        enchante:         totalLikesGiven >= 1,
-        reseau:           totalLikesGiven >= 25,
-        cercle:           totalLikesGiven >= 10,
-        populaire:        allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 50,
-        diva:             allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 100,
-        rok_star:         allReviews.reduce((a,r) => a + (r.likes||0), 0) >= 200,
+        enchante:         followingIds.length >= 1,
+        reseau:           followingIds.length >= 25,
+        cercle:           followingIds.length >= 10,
+        populaire:        followerCount >= 50,
+        diva:             followerCount >= 100,
+        rok_star:         followerCount >= 200,
         fan:              totalLikesGiven >= 10,
         ambassadeur:      totalLikesGiven >= 25,
         premier_echange:  totalReviews >= 1,
@@ -2664,7 +3003,7 @@ export default function SeriesBoxd() {
     }
     prevUnlockedRef.current = newIds;
     setUnlockedBadgeIds(newIds);
-  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user]);
+  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount]);
 
   // ── Auth + chargement initial ────────────────────────────────────────────
   useEffect(() => {
@@ -2687,6 +3026,13 @@ export default function SeriesBoxd() {
       if (saved.pinnedBadgeIds)   setPinnedBadgeIds(saved.pinnedBadgeIds);
       if (saved.rewatchCounts)    setRewatchCounts(saved.rewatchCounts);
       setDataLoaded(true);
+      if (uid) {
+        try {
+          const { followingIds: fids, followerIds } = await fetchFollows(uid);
+          setFollowingIds(fids);
+          setFollowerCount(followerIds.length);
+        } catch(e) { console.warn("fetchFollows:", e); }
+      }
     };
     init();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -2700,6 +3046,27 @@ export default function SeriesBoxd() {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
     persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts }, authUser?.id);
   }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, dataLoaded]);
+
+  useEffect(() => {
+    if (!authUser?.id || followingIds.length === 0) { setFriendsActivity([]); return; }
+    setFriendsActivityLoading(true);
+    (async () => {
+      try {
+        const { data: profiles } = await supabase.from("profiles").select("id, data").in("id", followingIds);
+        const acts = [];
+        (profiles || []).forEach(p => {
+          const name = p.data?.name || "Utilisateur";
+          const avatar = p.data?.avatar || null;
+          (p.data?.activityLog || []).slice(0, 15).forEach(a => {
+            acts.push({ userId: p.id, name, avatar, ...a });
+          });
+        });
+        acts.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+        setFriendsActivity(acts.slice(0, 30));
+      } catch(e) { console.warn("Friends activity:", e); }
+      setFriendsActivityLoading(false);
+    })();
+  }, [authUser?.id, JSON.stringify(followingIds)]);
 
   const addActivity = (type, label) => {
     setActivityLog(prev => [{
@@ -2913,15 +3280,25 @@ export default function SeriesBoxd() {
               <HomeSection title="📡 Nouveautés"        endpoint="/tv/on_the_air"    onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "📡 Nouveautés", endpoint: "/tv/on_the_air" })} />
               <div style={{ padding: "0 20px", marginBottom: 28 }}>
                 <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", marginBottom: 14 }}>Friends rate</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {friends.map((f, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1e1e1e", border: "1px solid #2a2a2a", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{f.avatar}</div>
-                      <div style={{ flex: 1 }}><span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span><span style={{ color: "#666", fontSize: 13 }}> {f.activity}</span>{f.rating&&<span style={{ color: ORANGE, fontSize: 12, marginLeft: 4 }}>{"★".repeat(f.rating)}</span>}</div>
-                      <div style={{ fontSize: 11, color: "#444" }}>{f.time}</div>
-                    </div>
-                  ))}
-                </div>
+                {followingIds.length === 0 ? (
+                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Suis des amis pour voir leur activit\u00e9 ici</div>
+                ) : friendsActivityLoading ? (
+                  <Spinner size={20} />
+                ) : friendsActivity.length === 0 ? (
+                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Aucune activit\u00e9 r\u00e9cente</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {friendsActivity.slice(0, 8).map((f, i) => (
+                      <div key={i} onClick={() => setViewingProfile({ userId: f.userId })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818", cursor: "pointer" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: "hidden" }}>
+                          {f.avatar ? <img src={f.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(f.name||"?")[0].toUpperCase()}</span>}
+                        </div>
+                        <div style={{ flex: 1 }}><span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span><span style={{ color: "#666", fontSize: 13 }}> {f.label}</span></div>
+                        <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(f.ts)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2992,7 +3369,7 @@ export default function SeriesBoxd() {
           })()}
 
                     {/* SEARCH */}
-          {tab === "search" && <SearchPage onOpen={openSeries} />}
+          {tab === "search" && <SearchPage onOpen={openSeries} onViewProfile={uid => setViewingProfile({ userId: uid })} currentUserId={authUser?.id} />}
 
           {/* PROFILE */}
           {tab === "profile" && (
@@ -3132,7 +3509,9 @@ export default function SeriesBoxd() {
                       if (item === "Lists")    { setShowListsPage(true);    return; }
                       if (item === "Badges")   { setShowBadgesPage(true);  return; }
                       if (item === "Reviews")  { setShowReviewsPage(true); return; }
-                      if (item === "Tags")     { setShowTagsPage(true);    return; }
+                      if (item === "Tags")        { setShowTagsPage(true);      return; }
+                      if (item === "Abonn\u00e9s")    { setShowFollowersPage(true); return; }
+                      if (item === "Abonnements") { setShowFollowingPage(true); return; }
                       setProfileTab(item);
                     }} style={{
                       display: "flex", alignItems: "center", width: "100%",
@@ -3433,6 +3812,19 @@ export default function SeriesBoxd() {
           />
         )}
 
+        {/* Public Profile */}
+        {viewingProfile && (
+          <PublicProfilePage userId={viewingProfile.userId} currentUserId={authUser?.id} onOpen={openSeries} onClose={() => setViewingProfile(null)} />
+        )}
+        {/* Followers Page */}
+        {showFollowersPage && (
+          <FollowListPage title="Abonnés" userId={authUser?.id} type="followers" currentUserId={authUser?.id} onViewProfile={uid => { setShowFollowersPage(false); setViewingProfile({ userId: uid }); }} />
+        )}
+        {/* Following Page */}
+        {showFollowingPage && (
+          <FollowListPage title="Abonnements" userId={authUser?.id} type="following" currentUserId={authUser?.id} onViewProfile={uid => { setShowFollowingPage(false); setViewingProfile({ userId: uid }); }} />
+        )}
+
         {/* Badges Page */}
         {showBadgesPage && (
           <BadgesPage
@@ -3446,7 +3838,7 @@ export default function SeriesBoxd() {
         {/* Bottom Nav */}
         <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 440, background: "rgba(8,8,8,.96)", backdropFilter: "blur(20px)", borderTop: "1px solid #1a1a1a", display: "flex", padding: "8px 0 24px", zIndex: 1000 }}>
           {tabs.map(t => { const active = tab===t.id; return (
-            <button key={t.id} onClick={() => { setTab(t.id); setShowWatchlistPage(false); setShowTVShowsPage(false); setShowListsPage(false); setShowBadgesPage(false); setShowReviewsPage(false); setShowTagsPage(false); setShowCreateList(false); setViewingList(null); setDetailSeries(null); setSeeAllPage(null); setShowSettingsPage(false); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "6px 0" }}>
+            <button key={t.id} onClick={() => { setTab(t.id); setShowWatchlistPage(false); setShowTVShowsPage(false); setShowListsPage(false); setShowBadgesPage(false); setShowReviewsPage(false); setShowTagsPage(false); setShowCreateList(false); setViewingList(null); setDetailSeries(null); setSeeAllPage(null); setShowSettingsPage(false); setViewingProfile(null); setShowFollowersPage(false); setShowFollowingPage(false); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "6px 0" }}>
               {NAV_ICONS[t.id]?.(active)}
               <span style={{ fontSize: 9, color: active?ORANGE:"#444", fontWeight: active?600:400, letterSpacing: ".04em", textTransform: "uppercase" }}>{t.label}</span>
             </button>
