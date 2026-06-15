@@ -3331,7 +3331,7 @@ export default function SeriesBoxd() {
 
                 {/* MINE */}
                 {diaryTab === "mine" && (
-                  <div style={{ padding: "20px 20px 40px" }}>
+                  <div style={{ padding: "12px 20px 40px" }}>
                     {activityLog.length === 0 ? (
                       <div style={{ textAlign: "center", padding: "60px 0" }}>
                         <div style={{ fontSize: 36, marginBottom: 16 }}>📖</div>
@@ -3339,16 +3339,20 @@ export default function SeriesBoxd() {
                         <div style={{ color: "#2a2a2a", fontSize: 12, marginTop: 8 }}>Note une série, coche des épisodes...</div>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {activityLog.map((entry, i) => (
-                          <div key={entry.id} style={{ display: "flex", gap: 14, padding: "14px 0", borderBottom: "1px solid #111", alignItems: "flex-start" }}>
-                            <div style={{ width: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, paddingTop: 1 }}>
-                              {ICONS[entry.type] || "•"}
+                          <div key={entry.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
+                            {/* Avatar */}
+                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#fff", flexShrink: 0, overflow: "hidden" }}>
+                              {user.avatar ? <img src={user.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(user.name||"?")[0].toUpperCase()}</span>}
                             </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ color: "#ddd", fontSize: 13, lineHeight: 1.4 }}>{entry.label}</div>
-                              <div style={{ color: "#444", fontSize: 11, marginTop: 4 }}>{formatRelative(entry.ts)}</div>
+                            {/* Contenu */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{user.pseudo || user.name}</span>
+                              <span style={{ color: "#666", fontSize: 13 }}> {entry.label}</span>
                             </div>
+                            {/* Temps */}
+                            <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelative(entry.ts)}</div>
                           </div>
                         ))}
                       </div>
@@ -3358,10 +3362,40 @@ export default function SeriesBoxd() {
 
                 {/* FRIENDS */}
                 {diaryTab === "friends" && (
-                  <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 36, marginBottom: 16 }}>👥</div>
-                    <div style={{ color: "#333", fontSize: 14 }}>Aucun ami pour l'instant</div>
-                    <div style={{ color: "#2a2a2a", fontSize: 12, marginTop: 8 }}>Le système d'amis arrive bientôt</div>
+                  <div style={{ padding: "12px 20px 40px" }}>
+                    {followingIds.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "60px 0" }}>
+                        <div style={{ fontSize: 36, marginBottom: 16 }}>👥</div>
+                        <div style={{ color: "#333", fontSize: 14 }}>Suis des amis pour voir leur activité</div>
+                        <div style={{ color: "#2a2a2a", fontSize: 12, marginTop: 8 }}>Recherche des amis dans l'onglet Chercher</div>
+                      </div>
+                    ) : friendsActivityLoading ? (
+                      <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
+                        <div style={{ width: 22, height: 22, border: "2px solid #1a1a1a", borderTop: `2px solid ${ORANGE}`, borderRadius: "50%", animation: "spin .8s linear infinite" }} />
+                      </div>
+                    ) : friendsActivity.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "60px 0" }}>
+                        <div style={{ color: "#333", fontSize: 14 }}>Aucune activité récente de tes amis</div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {friendsActivity.map((f, i) => (
+                          <div key={i} onClick={() => setViewingProfile({ userId: f.userId })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818", cursor: "pointer" }}>
+                            {/* Avatar */}
+                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: "hidden" }}>
+                              {f.avatar ? <img src={f.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(f.name||"?")[0].toUpperCase()}</span>}
+                            </div>
+                            {/* Contenu */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span>
+                              <span style={{ color: "#666", fontSize: 13 }}> {f.label}</span>
+                            </div>
+                            {/* Temps */}
+                            <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(f.ts)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
