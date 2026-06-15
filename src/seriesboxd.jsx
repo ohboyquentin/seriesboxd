@@ -485,6 +485,46 @@ function HomeSection({ title, endpoint, onOpen, onSeeAll }) {
   );
 }
 
+// ─── POPULAR WITH FRIENDS ─────────────────────────────────────────────────────
+
+function PopularWithFriends({ friendsActivity, followingIds, onOpen }) {
+  const items = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    const sorted = [...friendsActivity].sort((a, b) => {
+      const p = { watch: 2, rate: 2, episode: 1 };
+      return (p[b.type] || 0) - (p[a.type] || 0);
+    });
+    sorted.forEach(a => {
+      if (!a.series) return;
+      const key = a.series.tmdbId;
+      if (!seen.has(key)) { seen.add(key); result.push(a.series); }
+    });
+    return result.slice(0, 8);
+  }, [friendsActivity]);
+
+  if (followingIds.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 20px", marginBottom: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>👥 Popular with friends</div>
+      </div>
+      {items.length === 0 ? (
+        <div style={{ padding: "0 20px", color: "#333", fontSize: 13 }}>Tes amis n'ont pas encore d'activité</div>
+      ) : (
+        <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+          {items.map((s, i) => (
+            <div key={s.tmdbId || i} style={{ width: 100, flexShrink: 0 }}>
+              <PosterCard series={s} onOpen={onOpen} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SEE ALL PAGE ─────────────────────────────────────────────────────────────
 
 function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
@@ -3055,10 +3095,12 @@ export default function SeriesBoxd() {
         const { data: profiles } = await supabase.from("profiles").select("id, data").in("id", followingIds);
         const acts = [];
         (profiles || []).forEach(p => {
-          const name = p.data?.name || "Utilisateur";
+          const name   = p.data?.name || "Utilisateur";
           const avatar = p.data?.avatar || null;
+          const lib    = p.data?.library || [];
           (p.data?.activityLog || []).slice(0, 15).forEach(a => {
-            acts.push({ userId: p.id, name, avatar, ...a });
+            const series = lib.find(s => s.title && a.label?.includes(s.title)) || null;
+            acts.push({ userId: p.id, name, avatar, series, ...a });
           });
         });
         acts.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
@@ -3278,28 +3320,7 @@ export default function SeriesBoxd() {
               <HomeSection title="🔥 Popular this week" endpoint="/trending/tv/week" onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "🔥 Popular this week", endpoint: "/trending/tv/week" })} />
               <HomeSection title="⭐ Best rated"  endpoint="/tv/top_rated"     onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "⭐ Best rated", endpoint: "/tv/top_rated" })} />
               <HomeSection title="📡 Nouveautés"        endpoint="/tv/on_the_air"    onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "📡 Nouveautés", endpoint: "/tv/on_the_air" })} />
-              <div style={{ padding: "0 20px", marginBottom: 28 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", marginBottom: 14 }}>Friends rate</div>
-                {followingIds.length === 0 ? (
-                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Suis des amis pour voir leur activit\u00e9 ici</div>
-                ) : friendsActivityLoading ? (
-                  <Spinner size={20} />
-                ) : friendsActivity.length === 0 ? (
-                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: "20px 0" }}>Aucune activit\u00e9 r\u00e9cente</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {friendsActivity.slice(0, 8).map((f, i) => (
-                      <div key={i} onClick={() => setViewingProfile({ userId: f.userId })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818", cursor: "pointer" }}>
-                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: "hidden" }}>
-                          {f.avatar ? <img src={f.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(f.name||"?")[0].toUpperCase()}</span>}
-                        </div>
-                        <div style={{ flex: 1 }}><span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span><span style={{ color: "#666", fontSize: 13 }}> {f.label}</span></div>
-                        <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(f.ts)}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <PopularWithFriends friendsActivity={friendsActivity} followingIds={followingIds} onOpen={openSeries} />
             </div>
           )}
 
