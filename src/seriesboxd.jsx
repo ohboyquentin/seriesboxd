@@ -3156,7 +3156,7 @@ export default function SeriesBoxd() {
   const loadAllDataFor = async (uid) => {
     const saved = await loadSavedData(uid);
     setOnboarded(saved.onboarded || false);
-    setUser(saved.user || null);
+    setUser(saved.user || { name: "Alex", genres: [], platforms: [] });
     setLibrary(saved.library || []);
     setExtraReviews(saved.extraReviews || {});
     setWatchHistory(saved.watchHistory || {});
@@ -3197,7 +3197,6 @@ export default function SeriesBoxd() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       const newUid = session?.user?.id || null;
       setAuthUser(session?.user || null);
-      // Ne recharge que si l'utilisateur a réellement changé (évite les doubles chargements)
       if (newUid !== currentUidRef.current) {
         currentUidRef.current = newUid;
         setDataLoaded(false);
