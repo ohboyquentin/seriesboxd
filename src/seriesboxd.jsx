@@ -761,7 +761,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
   const backdropSrc = detail?.backdrop_path ? backdropUrl(detail.backdrop_path) : series.backdrop;
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
+    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, zIndex: 950, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
       {/* Hero */}
       <div style={{ position: "relative", height: 300 }}>
         {backdropSrc
@@ -2438,20 +2438,21 @@ async function fetchUserProfile(userId) {
   const { data } = await supabase
     .from("profiles").select("id, data, updated_at").eq("id", userId).single();
   if (!data) return null;
+  const u = data.data?.user || {};
   return {
     id: data.id,
-    name: data.data?.name || "Utilisateur",
-    pseudo: data.data?.pseudo || data.data?.name || "user",
-    avatar: data.data?.avatar || null,
-    bio: data.data?.bio || "",
-    favGenres: data.data?.favGenres || [],
+    name: u.name || "Utilisateur",
+    pseudo: u.pseudo || u.name || "user",
+    avatar: u.avatar || null,
+    bio: u.bio || "",
+    favGenres: u.favGenres || [],
     pinnedBadgeIds: data.data?.pinnedBadgeIds || [],
     unlockedBadgeIds: data.data?.unlockedBadgeIds || [],
     library: data.data?.library || [],
     activityLog: data.data?.activityLog || [],
     extraReviews: data.data?.extraReviews || {},
     watchedEpisodes: data.data?.watchedEpisodes || {},
-    favShows: data.data?.favShows || [],
+    favShows: u.favShows || data.data?.favShows || [],
   };
 }
 
@@ -2623,7 +2624,10 @@ function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
       const ids = (data || []).map(r => r[col]);
       if (ids.length === 0) { setLoading(false); return; }
       const { data: profiles } = await supabase.from("profiles").select("id,data").in("id", ids);
-      setUsers((profiles || []).map(p => ({ id: p.id, name: p.data?.name || "Utilisateur", pseudo: p.data?.pseudo || p.data?.name || "user", avatar: p.data?.avatar || null, watched: (p.data?.library || []).filter(s => s.watched).length })));
+      setUsers((profiles || []).map(p => {
+        const u = p.data?.user || {};
+        return { id: p.id, name: u.name || "Utilisateur", pseudo: u.pseudo || u.name || "user", avatar: u.avatar || null, watched: (p.data?.library || []).filter(s => s.watched).length };
+      }));
       if (currentUserId) {
         const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", ids);
         const map = {};
@@ -3248,8 +3252,9 @@ export default function SeriesBoxd() {
         const { data: profiles } = await supabase.from("profiles").select("id, data").in("id", followingIds);
         const acts = [];
         (profiles || []).forEach(p => {
-          const name   = p.data?.name || "Utilisateur";
-          const avatar = p.data?.avatar || null;
+          const u      = p.data?.user || {};
+          const name   = u.name || "Utilisateur";
+          const avatar = u.avatar || null;
           const lib    = p.data?.library || [];
           (p.data?.activityLog || []).slice(0, 15).forEach(a => {
             const series = lib.find(s => s.title && a.label?.includes(s.title)) || null;
@@ -3757,7 +3762,7 @@ export default function SeriesBoxd() {
           </div>
         )}
         {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
-        {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => { setSeeAllPage(null); openSeries(s); }} onClose={() => setSeeAllPage(null)} />}
+        {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
 
