@@ -761,7 +761,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
   const backdropSrc = detail?.backdrop_path ? backdropUrl(detail.backdrop_path) : series.backdrop;
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, zIndex: 950, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
+    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
       {/* Hero */}
       <div style={{ position: "relative", height: 300 }}>
         {backdropSrc
@@ -2403,18 +2403,23 @@ async function fetchFollows(userId) {
 }
 
 async function searchUsers(query) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .select("id, data, updated_at")
-    .limit(20);
+    .limit(50);
+  if (error) {
+    console.error("searchUsers Supabase error:", error);
+    return [];
+  }
+  console.log("searchUsers: profils trouvés en base =", data?.length, data);
   const q = query.toLowerCase();
-  return (data || [])
-    .filter(row => {
-      const name   = (row.data?.name   || "").toLowerCase();
-      const pseudo = (row.data?.pseudo || "").toLowerCase();
-      return name.includes(q) || pseudo.includes(q);
-    })
-    .map(row => ({
+  const filtered = (data || []).filter(row => {
+    const name   = (row.data?.name   || "").toLowerCase();
+    const pseudo = (row.data?.pseudo || "").toLowerCase();
+    return name.includes(q) || pseudo.includes(q);
+  });
+  console.log("searchUsers: résultats après filtre pour '" + query + "' =", filtered.length);
+  return filtered.map(row => ({
       id: row.id,
       name: row.data?.name || "Utilisateur",
       pseudo: row.data?.pseudo || row.data?.name || "user",
@@ -3753,7 +3758,7 @@ export default function SeriesBoxd() {
           </div>
         )}
         {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
-        {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
+        {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => { setSeeAllPage(null); openSeries(s); }} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
 
