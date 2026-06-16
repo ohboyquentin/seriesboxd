@@ -2403,36 +2403,35 @@ async function fetchFollows(userId) {
 }
 
 async function searchUsers(query) {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("profiles")
     .select("id, data, updated_at")
     .limit(50);
-  if (error) {
-    console.error("searchUsers Supabase error:", error);
-    return [];
-  }
-  console.log("searchUsers: profils trouvés en base =", data?.length, data);
   const q = query.toLowerCase();
-  const filtered = (data || []).filter(row => {
-    const name   = (row.data?.name   || "").toLowerCase();
-    const pseudo = (row.data?.pseudo || "").toLowerCase();
-    return name.includes(q) || pseudo.includes(q);
-  });
-  console.log("searchUsers: résultats après filtre pour '" + query + "' =", filtered.length);
-  return filtered.map(row => ({
-      id: row.id,
-      name: row.data?.name || "Utilisateur",
-      pseudo: row.data?.pseudo || row.data?.name || "user",
-      avatar: row.data?.avatar || null,
-      bio: row.data?.bio || "",
-      favGenres: row.data?.favGenres || [],
-      pinnedBadgeIds: row.data?.pinnedBadgeIds || [],
-      unlockedBadgeIds: row.data?.unlockedBadgeIds || [],
-      library: row.data?.library || [],
-      activityLog: row.data?.activityLog || [],
-      extraReviews: row.data?.extraReviews || {},
-      watchedEpisodes: row.data?.watchedEpisodes || {},
-    }));
+  return (data || [])
+    .filter(row => {
+      const u = row.data?.user || {};
+      const name   = (u.name   || "").toLowerCase();
+      const pseudo = (u.pseudo || "").toLowerCase();
+      return name.includes(q) || pseudo.includes(q);
+    })
+    .map(row => {
+      const u = row.data?.user || {};
+      return {
+        id: row.id,
+        name: u.name || "Utilisateur",
+        pseudo: u.pseudo || u.name || "user",
+        avatar: u.avatar || null,
+        bio: u.bio || "",
+        favGenres: u.favGenres || [],
+        pinnedBadgeIds: row.data?.pinnedBadgeIds || [],
+        unlockedBadgeIds: row.data?.unlockedBadgeIds || [],
+        library: row.data?.library || [],
+        activityLog: row.data?.activityLog || [],
+        extraReviews: row.data?.extraReviews || {},
+        watchedEpisodes: row.data?.watchedEpisodes || {},
+      };
+    });
 }
 
 async function fetchUserProfile(userId) {
