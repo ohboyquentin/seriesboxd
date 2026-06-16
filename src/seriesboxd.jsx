@@ -515,8 +515,10 @@ function PopularWithFriends({ friendsActivity, followingIds, onOpen }) {
       ) : (
         <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
           {items.map((s, i) => (
-            <div key={s.tmdbId || i} style={{ width: 100, flexShrink: 0 }}>
-              <PosterCard series={s} onOpen={onOpen} />
+            <div key={s.tmdbId || i} onClick={() => onOpen(s)} style={{ width: 100, flexShrink: 0, cursor: "pointer" }}>
+              <div style={{ width: "100%", aspectRatio: "2/3", borderRadius: 10, overflow: "hidden", background: "#1a1a1a" }}>
+                {s.poster && <img src={s.poster} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
             </div>
           ))}
         </div>
@@ -2666,7 +2668,7 @@ function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
               </div>
               <div onClick={() => onViewProfile(u.id)} style={{ flex: 1, cursor: "pointer" }}>
                 <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{u.name}</div>
-                <div style={{ color: "#555", fontSize: 12 }}>@{u.pseudo} \u00b7 {u.watched} s\u00e9ries vues</div>
+                <div style={{ color: "#555", fontSize: 12 }}>@{u.pseudo} · {u.watched} séries vues</div>
               </div>
               {currentUserId && currentUserId !== u.id && (
                 <button onClick={() => toggleFollow(u.id)} style={{ padding: "7px 14px", borderRadius: 16, background: followingMap[u.id] ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (followingMap[u.id] ? "#2a2a2a" : ORANGE_BORDER), color: followingMap[u.id] ? "#666" : ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
@@ -3567,7 +3569,7 @@ export default function SeriesBoxd() {
                             {/* Contenu */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span>
-                              <span style={{ color: "#666", fontSize: 13 }}> {f.label}</span>
+                              <span style={{ color: "#666", fontSize: 13 }}> {(f.label || "").replace(/^Tu as /, "a ").replace(/^Tu /, "")}</span>
                             </div>
                             {/* Temps */}
                             <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(f.ts)}</div>
