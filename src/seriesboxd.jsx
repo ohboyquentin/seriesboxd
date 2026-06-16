@@ -3029,7 +3029,7 @@ export default function SeriesBoxd() {
         premiere_opinion: ratings.length >= 1,
         coup_coeur:       fiveStars.length >= 20,
         sans_pitie:       oneStar.length >= 10,
-        severe:           avgRating > 0 && avgRating < 2.5,
+        "sévère":         avgRating > 0 && avgRating < 2.5,
         equilibre:        allStarValues.every(v => usedRatings.has(v)),
         gout_luxe:        avgRating >= 4 && ratings.length >= 5,
         mauvais_gout:     watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
