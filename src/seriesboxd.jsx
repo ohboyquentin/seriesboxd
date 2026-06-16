@@ -488,6 +488,12 @@ function HomeSection({ title, endpoint, onOpen, onSeeAll }) {
 // ─── POPULAR WITH FRIENDS ─────────────────────────────────────────────────────
 
 function PopularWithFriends({ friendsActivity, followingIds, onOpen, onSeeAll }) {
+  // Retire toute donnée personnelle (note, vu, watchlist) pour n'afficher qu'un poster neutre
+  const stripPersonalData = (s) => {
+    const { watched, userRating, inWatchlist, ...clean } = s;
+    return clean;
+  };
+
   const allItems = useMemo(() => {
     const seen = new Set();
     const result = [];
@@ -498,7 +504,7 @@ function PopularWithFriends({ friendsActivity, followingIds, onOpen, onSeeAll })
     sorted.forEach(a => {
       if (!a.series) return;
       const key = a.series.tmdbId;
-      if (!seen.has(key)) { seen.add(key); result.push(a.series); }
+      if (!seen.has(key)) { seen.add(key); result.push(stripPersonalData(a.series)); }
     });
     return result;
   }, [friendsActivity]);
