@@ -487,8 +487,8 @@ function HomeSection({ title, endpoint, onOpen, onSeeAll }) {
 
 // ─── POPULAR WITH FRIENDS ─────────────────────────────────────────────────────
 
-function PopularWithFriends({ friendsActivity, followingIds, onOpen }) {
-  const items = useMemo(() => {
+function PopularWithFriends({ friendsActivity, followingIds, onOpen, onSeeAll }) {
+  const allItems = useMemo(() => {
     const seen = new Set();
     const result = [];
     const sorted = [...friendsActivity].sort((a, b) => {
@@ -500,8 +500,10 @@ function PopularWithFriends({ friendsActivity, followingIds, onOpen }) {
       const key = a.series.tmdbId;
       if (!seen.has(key)) { seen.add(key); result.push(a.series); }
     });
-    return result.slice(0, 8);
+    return result;
   }, [friendsActivity]);
+
+  const items = allItems.slice(0, 8);
 
   if (followingIds.length === 0) return null;
 
@@ -509,6 +511,7 @@ function PopularWithFriends({ friendsActivity, followingIds, onOpen }) {
     <div style={{ marginBottom: 28 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 20px", marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>👥 Popular with friends</div>
+        {allItems.length > 0 && <div onClick={onSeeAll} style={{ fontSize: 12, color: ORANGE, cursor: "pointer" }}>Tout voir</div>}
       </div>
       {items.length === 0 ? (
         <div style={{ padding: "0 20px", color: "#333", fontSize: 13 }}>Tes amis n'ont pas encore d'activité</div>
@@ -3480,7 +3483,7 @@ export default function SeriesBoxd() {
               <HomeSection title="🔥 Popular this week" endpoint="/trending/tv/week" onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "🔥 Popular this week", endpoint: "/trending/tv/week" })} />
               <HomeSection title="⭐ Best rated"  endpoint="/tv/top_rated"     onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "⭐ Best rated", endpoint: "/tv/top_rated" })} />
               <HomeSection title="📡 Nouveautés"        endpoint="/tv/on_the_air"    onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "📡 Nouveautés", endpoint: "/tv/on_the_air" })} />
-              <PopularWithFriends friendsActivity={friendsActivity} followingIds={followingIds} onOpen={openSeries} />
+              <PopularWithFriends friendsActivity={friendsActivity} followingIds={followingIds} onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "👥 Popular with friends", inProgressList: friendsActivity.reduce((acc, a) => { if (a.series && !acc.find(s => s.tmdbId === a.series.tmdbId)) acc.push(a.series); return acc; }, []) })} />
             </div>
           )}
 
@@ -3712,8 +3715,8 @@ export default function SeriesBoxd() {
                     "Reviews":      Object.values(extraReviews).flat().length,
                     "Lists":        lists.length,
                     "Tags":         [...new Set(Object.values(tags).flat())].length,
-                    "Abonnements":  0,
-                    "Abonnés":      0,
+                    "Abonnements":  followingIds.length,
+                    "Abonnés":      followerCount,
                   };
                   const count = countMap[item] ?? 0;
 
