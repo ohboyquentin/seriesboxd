@@ -2895,7 +2895,7 @@ export default function SeriesBoxd() {
     });
 
     // Jours d'activité consécutifs
-    const activityDays = [...new Set(activityLog.map(a => a.date?.slice(0,10)))].filter(Boolean).sort();
+    const activityDays = [...new Set(activityLog.map(a => a.ts?.slice(0,10)))].filter(Boolean).sort();
     const maxStreak = (() => {
       let streak = 1, max = 0;
       for (let i = 1; i < activityDays.length; i++) {
