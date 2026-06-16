@@ -770,6 +770,11 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
         }
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom,rgba(8,8,8,.25) 0%,rgba(8,8,8,.97) 100%)" }} />
 
+        {/* Flèche retour */}
+        <button onClick={onClose} style={{ position: "absolute", top: 52, left: 16, width: 36, height: 36, borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.12)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 10 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "0 20px 20px", display: "flex", gap: 16, alignItems: "flex-end" }}>
           <div style={{ width: 88, flexShrink: 0, borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,.8)", aspectRatio: "2/3", background: "#1a1a1a" }}>
             {series.poster && <img src={series.poster} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
