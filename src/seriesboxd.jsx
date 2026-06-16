@@ -3154,6 +3154,25 @@ export default function SeriesBoxd() {
 
   // ── Auth + chargement initial ────────────────────────────────────────────
   const loadAllDataFor = async (uid) => {
+    // Ferme toutes les pages/modales ouvertes pour éviter d'afficher
+    // l'état visuel de l'ancien compte pendant le chargement du nouveau
+    setShowSettingsPage(false);
+    setShowWatchlistPage(false);
+    setShowTVShowsPage(false);
+    setShowUpcomingPage(false);
+    setShowListsPage(false);
+    setShowBadgesPage(false);
+    setShowReviewsPage(false);
+    setShowTagsPage(false);
+    setShowCreateList(false);
+    setViewingList(null);
+    setDetailSeries(null);
+    setSeeAllPage(null);
+    setViewingProfile(null);
+    setShowFollowersPage(false);
+    setShowFollowingPage(false);
+    setTab("home");
+
     const saved = await loadSavedData(uid);
     setOnboarded(saved.onboarded || false);
     setUser(saved.user || { name: "Alex", genres: [], platforms: [] });
