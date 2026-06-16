@@ -3489,7 +3489,7 @@ export default function SeriesBoxd() {
               <HomeSection title="🔥 Popular this week" endpoint="/trending/tv/week" onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "🔥 Popular this week", endpoint: "/trending/tv/week" })} />
               <HomeSection title="⭐ Best rated"  endpoint="/tv/top_rated"     onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "⭐ Best rated", endpoint: "/tv/top_rated" })} />
               <HomeSection title="📡 Nouveautés"        endpoint="/tv/on_the_air"    onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "📡 Nouveautés", endpoint: "/tv/on_the_air" })} />
-              <PopularWithFriends friendsActivity={friendsActivity} followingIds={followingIds} onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "👥 Popular with friends", inProgressList: friendsActivity.reduce((acc, a) => { if (a.series && !acc.find(s => s.tmdbId === a.series.tmdbId)) acc.push(a.series); return acc; }, []) })} />
+              <PopularWithFriends friendsActivity={friendsActivity} followingIds={followingIds} onOpen={openSeries} onSeeAll={() => setSeeAllPage({ title: "👥 Popular with friends", inProgressList: friendsActivity.reduce((acc, a) => { if (a.series && !acc.find(s => s.tmdbId === a.series.tmdbId)) { const { watched, userRating, inWatchlist, ...clean } = a.series; acc.push(clean); } return acc; }, []) })} />
             </div>
           )}
 
