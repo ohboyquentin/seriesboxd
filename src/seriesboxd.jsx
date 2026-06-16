@@ -1581,25 +1581,26 @@ function SettingsPage({ user, onSave, onClose, watched, library, authEmail, onLo
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 
-const LS_KEY = "seriesboxd_data";
+const LS_KEY_BASE = "seriesboxd_data";
+const getLsKey = (userId) => userId ? `${LS_KEY_BASE}_${userId}` : LS_KEY_BASE;
 
-function loadLocalData() {
-  try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : {}; }
+function loadLocalData(userId) {
+  try { const r = localStorage.getItem(getLsKey(userId)); return r ? JSON.parse(r) : {}; }
   catch { return {}; }
 }
-function saveLocalData(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+function saveLocalData(data, userId) {
+  try { localStorage.setItem(getLsKey(userId), JSON.stringify(data)); }
   catch (e) { console.warn("localStorage plein :", e.message); }
 }
 
 async function loadSavedData(userId) {
-  const local = loadLocalData();
+  const local = loadLocalData(userId);
   if (!userId) return local;
   try {
     const { data, error } = await supabase
       .from("profiles").select("data").eq("id", userId).single();
     if (!error && data?.data && Object.keys(data.data).length > 0) {
-      saveLocalData(data.data);
+      saveLocalData(data.data, userId);
       return data.data;
     }
   } catch (e) { console.warn("Supabase load:", e.message); }
@@ -1607,7 +1608,7 @@ async function loadSavedData(userId) {
 }
 
 async function persistData(data, userId) {
-  saveLocalData(data);
+  saveLocalData(data, userId);
   if (!userId) return;
   try {
     await supabase.from("profiles").upsert({ id: userId, data, updated_at: new Date().toISOString() });
@@ -3152,37 +3153,56 @@ export default function SeriesBoxd() {
   }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount]);
 
   // ── Auth + chargement initial ────────────────────────────────────────────
+  const loadAllDataFor = async (uid) => {
+    const saved = await loadSavedData(uid);
+    setOnboarded(saved.onboarded || false);
+    setUser(saved.user || null);
+    setLibrary(saved.library || []);
+    setExtraReviews(saved.extraReviews || {});
+    setWatchHistory(saved.watchHistory || {});
+    setActivityLog(saved.activityLog || []);
+    setWatchedEpisodes(saved.watchedEpisodes || {});
+    setLists(saved.lists || []);
+    setTags(saved.tags || {});
+    setUnlockedBadgeIds(saved.unlockedBadgeIds || ["premiers_pas","bienvenue","fidele","premier_mot","enchante"]);
+    setPinnedBadgeIds(saved.pinnedBadgeIds || []);
+    setRewatchCounts(saved.rewatchCounts || {});
+    prevUnlockedRef.current = null; // évite un faux toast de badges au changement de compte
+    setDataLoaded(true);
+    if (uid) {
+      try {
+        const { followingIds: fids, followerIds } = await fetchFollows(uid);
+        setFollowingIds(fids);
+        setFollowerCount(followerIds.length);
+      } catch(e) { console.warn("fetchFollows:", e); }
+    } else {
+      setFollowingIds([]);
+      setFollowerCount(0);
+      setFriendsActivity([]);
+    }
+  };
+
+  const currentUidRef = useRef(undefined); // undefined = pas encore initialisé
+
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user?.id || null;
+      currentUidRef.current = uid;
       setAuthUser(session?.user || null);
       setAuthReady(true);
-      const saved = await loadSavedData(uid);
-      if (saved.onboarded)        setOnboarded(saved.onboarded);
-      if (saved.user)             setUser(saved.user);
-      if (saved.library)          setLibrary(saved.library);
-      if (saved.extraReviews)     setExtraReviews(saved.extraReviews);
-      if (saved.watchHistory)     setWatchHistory(saved.watchHistory);
-      if (saved.activityLog)      setActivityLog(saved.activityLog);
-      if (saved.watchedEpisodes)  setWatchedEpisodes(saved.watchedEpisodes);
-      if (saved.lists)            setLists(saved.lists);
-      if (saved.tags)             setTags(saved.tags);
-      if (saved.unlockedBadgeIds) setUnlockedBadgeIds(saved.unlockedBadgeIds);
-      if (saved.pinnedBadgeIds)   setPinnedBadgeIds(saved.pinnedBadgeIds);
-      if (saved.rewatchCounts)    setRewatchCounts(saved.rewatchCounts);
-      setDataLoaded(true);
-      if (uid) {
-        try {
-          const { followingIds: fids, followerIds } = await fetchFollows(uid);
-          setFollowingIds(fids);
-          setFollowerCount(followerIds.length);
-        } catch(e) { console.warn("fetchFollows:", e); }
-      }
+      await loadAllDataFor(uid);
     };
     init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+      const newUid = session?.user?.id || null;
       setAuthUser(session?.user || null);
+      // Ne recharge que si l'utilisateur a réellement changé (évite les doubles chargements)
+      if (newUid !== currentUidRef.current) {
+        currentUidRef.current = newUid;
+        setDataLoaded(false);
+        await loadAllDataFor(newUid);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
