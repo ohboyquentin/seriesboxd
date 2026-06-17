@@ -3211,7 +3211,6 @@ export default function SeriesBoxd() {
     setPinnedBadgeIds(saved.pinnedBadgeIds || []);
     setRewatchCounts(saved.rewatchCounts || {});
     prevUnlockedRef.current = null; // évite un faux toast de badges au changement de compte
-    setDataLoaded(true);
     if (uid) {
       try {
         const { followingIds: fids, followerIds } = await fetchFollows(uid);
@@ -3223,6 +3222,7 @@ export default function SeriesBoxd() {
       setFollowerCount(0);
       setFriendsActivity([]);
     }
+    setDataLoaded(true);
   };
 
   const currentUidRef = useRef(undefined); // undefined = pas encore initialisé
@@ -3423,8 +3423,9 @@ export default function SeriesBoxd() {
     { id: "profile", label: "Profil" },
   ];
 
-  if (!authReady) return (
+  if (!authReady || (authUser && !dataLoaded)) return (
     <div style={{ height:"100vh", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <Spinner size={32} />
     </div>
   );
