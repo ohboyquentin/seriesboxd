@@ -620,7 +620,17 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
               <div key={`${s.tmdbId}-${i}`}>
                 <PosterCard series={s} onOpen={onOpen} />
                 <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: "#aaa", lineHeight: 1.3, fontFamily: "'Playfair Display',Georgia,serif", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{s.title}</div>
-                {s.rating && <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}><span style={{ color: ORANGE, fontSize: 9 }}>★</span><span style={{ color: "#555", fontSize: 10 }}>{s.rating}</span></div>}
+                {s.userRating
+                  ? <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                      <span style={{ color: ORANGE, fontSize: 9, letterSpacing: 1 }}>{"★".repeat(Math.floor(s.userRating))}{s.userRating % 1 ? "½" : ""}</span>
+                      {s._hasReview && <span style={{ color: "#666", fontSize: 10 }}>✎</span>}
+                    </div>
+                  : s._hasReview
+                    ? <div style={{ marginTop: 2 }}><span style={{ color: "#666", fontSize: 10 }}>✎</span></div>
+                    : s.rating && !s.userRating
+                      ? <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}><span style={{ color: ORANGE, fontSize: 9 }}>★</span><span style={{ color: "#555", fontSize: 10 }}>{s.rating}</span></div>
+                      : null
+                }
               </div>
             ))}
           </div>
@@ -3710,7 +3720,7 @@ export default function SeriesBoxd() {
                     const allItems = Object.values(activityMap).sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
                     if (allItems.length <= 4) return null;
                     return (
-                      <div onClick={() => setSeeAllPage({ title: "Activités récentes", inProgressList: allItems.map(i => i.series) })} style={{ fontSize: 12, color: ORANGE, cursor: "pointer" }}>Tout voir</div>
+                      <div onClick={() => setSeeAllPage({ title: "Activités récentes", inProgressList: allItems.map(i => ({ ...i.series, _hasReview: i.reviewed })) })} style={{ fontSize: 12, color: ORANGE, cursor: "pointer" }}>Tout voir</div>
                     );
                   })()}
                 </div>
