@@ -126,6 +126,7 @@ function adaptShow(t) {
   const genreInput = t.genres
     ? t.genres
     : (t.genre_ids || []).map(id => ({ id }));
+  const genresArr = genreInput.map(g => GENRE_MAP[g?.id] || g?.name || "").filter(Boolean);
   return {
     tmdbId: t.id, id: t.id,
     title: t.name || t.original_name || "—",
@@ -133,6 +134,7 @@ function adaptShow(t) {
     seasons: t.number_of_seasons || 1,
     rating: t.vote_average ? parseFloat((t.vote_average / 2).toFixed(1)) : 0,
     genre: tmdbGenre(genreInput),
+    genres: genresArr,
     status: tmdbStatus(t.status),
     poster: posterUrl(t.poster_path),
     backdrop: backdropUrl(t.backdrop_path),
@@ -140,6 +142,7 @@ function adaptShow(t) {
     overview: t.overview || "",
     network: t.networks?.[0]?.name || "—",
     creator: t.created_by?.map(c => c.name).join(", ") || "—",
+    origin_country: t.origin_country || [],
     watched: false, userRating: null,
   };
 }
@@ -2862,7 +2865,10 @@ export default function SeriesBoxd() {
     const watchlistSize  = library.filter(s => s.inWatchlist).length;
 
     // Genres uniques des séries vues
-    const genresSeen = [...new Set(watchedSeries.flatMap(s => s.genres || []))];
+    // Helper pour récupérer les genres d'une série — tableau si dispo, sinon genre string comme fallback
+    const getGenres = (s) => (s.genres && s.genres.length > 0) ? s.genres : (s.genre && s.genre !== "Série" ? [s.genre] : []);
+
+    const genresSeen = [...new Set(watchedSeries.flatMap(s => getGenres(s)))];
 
     // Séries terminées = tous les épisodes cochés
     const completedSeries = library.filter(s => {
@@ -2874,7 +2880,7 @@ export default function SeriesBoxd() {
     });
 
     // Séries vues par genre
-    const seriesByGenre = (genre) => completedSeries.filter(s => (s.genres || []).some(g => g.toLowerCase().includes(genre.toLowerCase())));
+    const seriesByGenre = (genre) => completedSeries.filter(s => getGenres(s).some(g => g.toLowerCase().includes(genre.toLowerCase())));
 
     // Notes données
     const ratings      = watchedSeries.filter(s => s.userRating).map(s => s.userRating);
@@ -3063,17 +3069,17 @@ export default function SeriesBoxd() {
         cameleon:         genresSeen.length >= 15,
         omnivore:         genresSeen.length >= 18,
         galactique:       watchedSeries.length >= 20 && genresSeen.length >= 10,
-        fan_crime:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        fan_crime:        (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         profiler:         seriesByGenre("crime").length >= 10,
-        spatial:          (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("sci"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        spatial:          (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("sci"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         seul_mars:        seriesByGenre("sci").length >= 10,
         clown:            seriesByGenre("comédie").length >= 10,
-        detective:        (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("policier"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        detective:        (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("policier"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         briseur:          seriesByGenre("drame").length >= 10,
         ghostbuster:      seriesByGenre("horreur").length >= 10,
         lover:            seriesByGenre("romance").length >= 10,
         bagarreur:        seriesByGenre("action").length >= 10,
-        Magicien:         (watchedSeries.filter(s => (s.genres||[]).some(g=>g.toLowerCase().includes("fantasy")||g.toLowerCase().includes("fantaisie"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        Magicien:         (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("fantasy")||g.toLowerCase().includes("fantaisie"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         chirurgien:       seriesByGenre("médical").length >= 5,
         historien:        seriesByGenre("historique").length >= 10,
         aventurier:       countries.length >= 10,
