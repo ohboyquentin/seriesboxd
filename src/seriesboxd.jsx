@@ -3756,7 +3756,7 @@ export default function SeriesBoxd() {
                                   {"★".repeat(Math.floor(s.userRating))}{s.userRating % 1 ? "½" : ""}
                                 </span>
                               )}
-                              {reviewed && <span style={{ color: "#888", fontSize: 13 }}>✎</span>}
+                              {reviewed && <span style={{ fontSize: 11 }}>💬</span>}
                             </div>
                           )}
                         </div>
