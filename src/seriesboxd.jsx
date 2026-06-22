@@ -627,7 +627,7 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
                     </div>
                   : s._hasReview
                     ? <div style={{ marginTop: 2 }}><span style={{ color: "#666", fontSize: 10 }}>✎</span></div>
-                    : s.rating && !s.userRating
+                    : s.rating && !s._hideRating
                       ? <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}><span style={{ color: ORANGE, fontSize: 9 }}>★</span><span style={{ color: "#555", fontSize: 10 }}>{s.rating}</span></div>
                       : null
                 }
@@ -852,7 +852,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             <span style={{ fontSize: 14 }}>&#128278;</span>
             <span>{liveSeries.inWatchlist ? "Watchlist ✓" : "Watchlist"}</span>
           </button>
-          <button onClick={() => setShowForm(!showForm)} style={{ flex: 1, padding: "8px 0", borderRadius: 12, background: showForm ? ORANGE_DIM : "#111", border: "1px solid " + (showForm ? ORANGE_BORDER : "#222"), color: showForm ? ORANGE : "#777", fontSize: 11, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <button onClick={() => { setShowForm(!showForm); setDetailTab("reviews"); }} style={{ flex: 1, padding: "8px 0", borderRadius: 12, background: showForm ? ORANGE_DIM : "#111", border: "1px solid " + (showForm ? ORANGE_BORDER : "#222"), color: showForm ? ORANGE : "#777", fontSize: 11, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
             <span style={{ fontSize: 14 }}>&#128172;</span>
             <span>Critique</span>
           </button>
@@ -3720,7 +3720,7 @@ export default function SeriesBoxd() {
                     const allItems = Object.values(activityMap).sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
                     if (allItems.length <= 4) return null;
                     return (
-                      <div onClick={() => setSeeAllPage({ title: "Activités récentes", inProgressList: allItems.map(i => ({ ...i.series, _hasReview: i.reviewed })) })} style={{ fontSize: 12, color: ORANGE, cursor: "pointer" }}>Tout voir</div>
+                      <div onClick={() => setSeeAllPage({ title: "Activités récentes", inProgressList: allItems.map(i => ({ ...i.series, _hasReview: i.reviewed, _hideRating: true })) })} style={{ fontSize: 12, color: ORANGE, cursor: "pointer" }}>Tout voir</div>
                     );
                   })()}
                 </div>
