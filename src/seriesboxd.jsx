@@ -797,7 +797,9 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.1 }}>{series.title}</div>
             <div style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>{series.year} · {detail?.networks?.[0]?.name || series.network} · {detail?.number_of_seasons || series.seasons} saison{series.seasons > 1 ? "s" : ""}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-              <span style={{ background: "#1a1a1a", color: "#aaa", fontSize: 11, padding: "3px 8px", borderRadius: 20, border: "1px solid #2a2a2a" }}>{series.genre}</span>
+              {(series.genres && series.genres.length > 0 ? series.genres : [series.genre]).filter(Boolean).map(g => (
+                <span key={g} style={{ background: "#1a1a1a", color: "#aaa", fontSize: 11, padding: "3px 8px", borderRadius: 20, border: "1px solid #2a2a2a" }}>{g}</span>
+              ))}
               <span style={{ background: series.status === "En cours" ? ORANGE_DIM : "rgba(100,200,100,.1)", color: series.status === "En cours" ? ORANGE : "#6dc86d", fontSize: 11, padding: "3px 8px", borderRadius: 20 }}>{series.status}</span>
             </div>
           </div>
