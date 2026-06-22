@@ -623,10 +623,10 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
                 {s.userRating
                   ? <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
                       <span style={{ color: ORANGE, fontSize: 9, letterSpacing: 1 }}>{"★".repeat(Math.floor(s.userRating))}{s.userRating % 1 ? "½" : ""}</span>
-                      {s._hasReview && <span style={{ color: "#666", fontSize: 10 }}>✎</span>}
+                      {s._hasReview && <span style={{ fontSize: 10 }}>💬</span>}
                     </div>
                   : s._hasReview
-                    ? <div style={{ marginTop: 2 }}><span style={{ color: "#666", fontSize: 10 }}>✎</span></div>
+                    ? <div style={{ marginTop: 2 }}><span style={{ fontSize: 10 }}>💬</span></div>
                     : s.rating && !s._hideRating
                       ? <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}><span style={{ color: ORANGE, fontSize: 9 }}>★</span><span style={{ color: "#555", fontSize: 10 }}>{s.rating}</span></div>
                       : null
