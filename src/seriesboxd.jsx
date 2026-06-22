@@ -3693,11 +3693,63 @@ export default function SeriesBoxd() {
               </div>
 
               <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Dernières notes</div>
-                {watched.filter(s => s.userRating).length === 0
-                  ? <div style={{ padding: "0 20px", color: "#333", fontSize: 13 }}>Aucune note pour l'instant</div>
-                  : <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto" }}>{watched.filter(s=>s.userRating).map(s=><div key={s.tmdbId} style={{ width: 90, flexShrink: 0 }}><PosterCard series={s} onOpen={openSeries} /></div>)}</div>
-                }
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Activités récentes</div>
+                {(() => {
+                  // Construit une map unique par série avec toutes les infos consolidées
+                  const activityMap = {};
+                  // Parcourt activityLog pour garder l'ordre chronologique
+                  const relevantTypes = ["watch", "rate", "review"];
+                  activityLog.filter(a => relevantTypes.includes(a.type)).forEach(a => {
+                    // Extrait le tmdbId depuis la library en matchant le titre dans le label
+                    const series = library.find(s => a.label?.includes(s.title));
+                    if (!series) return;
+                    const key = series.tmdbId;
+                    if (!activityMap[key]) {
+                      activityMap[key] = { series, watched: false, rated: false, reviewed: false, ts: a.ts };
+                    }
+                    if (a.type === "watch")  activityMap[key].watched  = true;
+                    if (a.type === "rate")   activityMap[key].rated    = true;
+                    if (a.type === "review") activityMap[key].reviewed = true;
+                    // Garde le timestamp le plus récent
+                    if (a.ts > activityMap[key].ts) activityMap[key].ts = a.ts;
+                  });
+
+                  // Trie par timestamp décroissant (le plus récent en premier)
+                  const recentItems = Object.values(activityMap)
+                    .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""))
+                    .slice(0, 12);
+
+                  if (recentItems.length === 0) {
+                    return <div style={{ padding: "0 20px", color: "#333", fontSize: 13 }}>Aucune activité pour l'instant</div>;
+                  }
+
+                  return (
+                    <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+                      {recentItems.map(({ series: s, rated, reviewed }) => (
+                        <div key={s.tmdbId} style={{ width: 90, flexShrink: 0 }}>
+                          {/* Poster */}
+                          <div onClick={() => openSeries(s)} style={{ width: 90, height: 135, borderRadius: 10, overflow: "hidden", background: "#1a1a1a", cursor: "pointer", position: "relative" }}>
+                            {s.poster && <img src={s.poster} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                          </div>
+                          {/* Infos sous le poster */}
+                          {(rated || reviewed) && (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 5 }}>
+                              {rated && s.userRating && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                  <span style={{ color: ORANGE, fontSize: 11 }}>★</span>
+                                  <span style={{ color: "#ccc", fontSize: 11, fontWeight: 600 }}>{s.userRating}</span>
+                                </div>
+                              )}
+                              {reviewed && (
+                                <span style={{ color: "#888", fontSize: 13 }}>✎</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {(() => {
