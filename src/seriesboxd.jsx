@@ -663,7 +663,7 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [] }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
@@ -860,6 +860,35 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           </button>
         </div>
       </div>
+
+      {/* Bannière amis */}
+      {friendsData.length > 0 && (() => {
+        const friendsWatched = friendsData.filter(f => f.type === "watch" || f.type === "rate" || f.type === "episode");
+        const uniqueFriends = [...new Map(friendsWatched.map(f => [f.userId, f])).values()];
+        const friendsRated = friendsData.filter(f => f.type === "rate" && f.series?.userRating);
+        const avgRating = friendsRated.length > 0
+          ? (friendsRated.reduce((a, f) => a + (f.series?.userRating || 0), 0) / friendsRated.length).toFixed(1)
+          : null;
+        if (uniqueFriends.length === 0) return null;
+        const names = uniqueFriends.slice(0, 2).map(f => f.name).join(", ");
+        const extra = uniqueFriends.length > 2 ? ` +${uniqueFriends.length - 2}` : "";
+        return (
+          <div style={{ margin: "12px 20px 0", padding: "10px 14px", background: ORANGE_DIM, border: `1px solid ${ORANGE_BORDER}`, borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", gap: -4 }}>
+              {uniqueFriends.slice(0, 3).map((f, i) => (
+                <div key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", border: "2px solid #080808", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", marginLeft: i > 0 ? -8 : 0, overflow: "hidden" }}>
+                  {f.avatar ? <img src={f.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>{(f.name||"?")[0].toUpperCase()}</span>}
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1 }}>
+              <span style={{ color: ORANGE, fontSize: 12, fontWeight: 600 }}>{names}{extra}</span>
+              <span style={{ color: "#c084fc", fontSize: 12 }}> {uniqueFriends.length > 1 ? "ont" : "a"} vu cette série</span>
+              {avgRating && <span style={{ color: "#c084fc", fontSize: 12 }}> · ★ {avgRating} en moyenne</span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid #161616" }}>
@@ -3535,7 +3564,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
