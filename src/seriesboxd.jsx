@@ -663,15 +663,8 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
-  const [epPopup, setEpPopup] = useState(null); // { ep, seasonN }
-
-  const openEpPopup = (e, ep, seasonN) => {
-    e.stopPropagation();
-    setEpPopup({ ep, seasonN });
-  };
-
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
@@ -1000,7 +993,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                       {ep.overview && <div style={{ color: "#444", fontSize: 11, marginTop: 4, lineHeight: 1.4 }}>{ep.overview.slice(0,90)}{ep.overview.length>90?"…":""}</div>}
                     </div>
                     {/* Bouton ℹ discret */}
-                    <button onClick={(e) => openEpPopup(e, ep, season.n)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", padding: "2px 4px", fontSize: 13, flexShrink: 0, alignSelf: "center", lineHeight: 1 }}>ℹ</button>
+                    <button onClick={(e) => { e.stopPropagation(); onEpPopup && onEpPopup(ep, season.n); }} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", padding: "2px 4px", fontSize: 13, flexShrink: 0, alignSelf: "center", lineHeight: 1 }}>ℹ</button>
                   </div>
                 );
               })}
@@ -1053,47 +1046,6 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           </div>
         </div>
       )}
-      {/* Episode detail popup */}
-      {epPopup && (() => {
-        const { ep, seasonN } = epPopup;
-        const isWatched = !!watchedEps[epKey(seasonN, ep.ep)];
-        const airDate = ep.air_date ? new Date(ep.air_date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
-        return (
-          <div onClick={() => setEpPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 999, display: "flex", alignItems: "flex-end", justifyContent: "center", maxWidth: 440, margin: "0 auto" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#0f0f0f", borderRadius: "20px 20px 0 0", width: "100%", border: "1px solid #1e1e1e", borderBottom: "none", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-              {ep.still && <img src={ep.still} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: "20px 20px 0 0", flexShrink: 0 }} />}
-              {/* Scrollable content */}
-              <div style={{ overflowY: "auto", flex: 1, padding: "20px 20px 0" }}>
-                <div style={{ width: 36, height: 3, background: "#2a2a2a", borderRadius: 2, margin: "0 auto 20px" }} />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <div style={{ flex: 1, paddingRight: 12 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.3 }}>{ep.title}</div>
-                    <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>S{seasonN}E{ep.ep}{ep.duration ? ` · ${ep.duration}` : ""}</div>
-                  </div>
-                </div>
-                {airDate && <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>📅 {airDate}</div>}
-                {ep.overview && <div style={{ fontSize: 13, color: "#999", lineHeight: 1.7, marginBottom: 16 }}>{ep.overview}</div>}
-                {ep.guest_stars?.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Guest stars</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {ep.guest_stars.slice(0, 8).map((g, i) => (
-                        <span key={i} style={{ background: "#141414", border: "1px solid #222", color: "#777", fontSize: 11, padding: "4px 10px", borderRadius: 20 }}>{g.name}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* Bouton toujours visible en bas */}
-              <div style={{ padding: "14px 20px 36px", flexShrink: 0, borderTop: "1px solid #111" }}>
-                <button onClick={() => { toggleEpisode(seasonN, ep.ep); setEpPopup(null); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isWatched ? "#1a1a1a" : ORANGE_DIM, border: `1px solid ${isWatched ? "#2a2a2a" : ORANGE_BORDER}`, color: isWatched ? "#666" : ORANGE, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                  {isWatched ? "Retirer du visionnage" : "Marquer comme vu"}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
@@ -2903,6 +2855,7 @@ export default function SeriesBoxd() {
   const [newlyUnlocked, setNewlyUnlocked]       = useState(null); // badge actuellement affiché en toast
   const prevUnlockedRef = useRef(null);
   const [confirm, setConfirm] = useState(null);
+  const [epPopup, setEpPopup] = useState(null); // { ep, seasonN, tmdbId }
   const [rewatchCounts, setRewatchCounts] = useState({}); // { message, onConfirm }
   const askConfirm = (message, onConfirm, opts = {}) => setConfirm({ message, onConfirm, ...opts });
 
@@ -3528,7 +3481,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
@@ -4158,6 +4111,50 @@ export default function SeriesBoxd() {
         {showTagsPage && (
           <TagsPage library={library} tags={tags} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAskConfirm={askConfirm} openSeries={(s) => { setShowTagsPage(false); openSeries(s); }} />
         )}
+
+        {/* Episode Popup */}
+        {epPopup && (() => {
+          const { ep, seasonN, tmdbId } = epPopup;
+          const eps = watchedEpisodes[tmdbId] || {};
+          const key = `S${seasonN}E${ep.ep}`;
+          const isWatched = !!eps[key];
+          const airDate = ep.air_date ? new Date(ep.air_date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
+          const handleToggle = () => {
+            const newEps = { ...eps, [key]: !isWatched };
+            if (!newEps[key]) delete newEps[key];
+            setWatchedEpisodes(prev => ({ ...prev, [tmdbId]: newEps }));
+            setEpPopup(null);
+          };
+          return (
+            <div onClick={() => setEpPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 9998, display: "flex", alignItems: "flex-end", justifyContent: "center", maxWidth: 440, margin: "0 auto" }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#0f0f0f", borderRadius: "20px 20px 0 0", width: "100%", border: "1px solid #1e1e1e", borderBottom: "none", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+                {ep.still && <img src={ep.still} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: "20px 20px 0 0", flexShrink: 0 }} />}
+                <div style={{ overflowY: "auto", flex: 1, padding: "20px 20px 0" }}>
+                  <div style={{ width: 36, height: 3, background: "#2a2a2a", borderRadius: 2, margin: "0 auto 20px" }} />
+                  <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.3, marginBottom: 4 }}>{ep.title}</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: airDate ? 8 : 12 }}>S{seasonN}E{ep.ep}{ep.duration ? ` · ${ep.duration}` : ""}</div>
+                  {airDate && <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>📅 {airDate}</div>}
+                  {ep.overview && <div style={{ fontSize: 13, color: "#999", lineHeight: 1.7, marginBottom: 16 }}>{ep.overview}</div>}
+                  {ep.guest_stars?.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Guest stars</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {ep.guest_stars.slice(0, 8).map((g, i) => (
+                          <span key={i} style={{ background: "#141414", border: "1px solid #222", color: "#777", fontSize: 11, padding: "4px 10px", borderRadius: 20 }}>{g.name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: "14px 20px 44px", flexShrink: 0, borderTop: "1px solid #111" }}>
+                  <button onClick={handleToggle} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isWatched ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (isWatched ? "#2a2a2a" : ORANGE_BORDER), color: isWatched ? "#666" : ORANGE, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                    {isWatched ? "Retirer du visionnage" : "Marquer comme vu"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Confirm Dialog */}
         {confirm && (
