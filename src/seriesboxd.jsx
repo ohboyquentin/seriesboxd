@@ -873,7 +873,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
         const names = uniqueFriends.slice(0, 2).map(f => f.name).join(", ");
         const extra = uniqueFriends.length > 2 ? ` +${uniqueFriends.length - 2}` : "";
         return (
-          <div style={{ margin: "12px 20px 0", padding: "10px 14px", background: ORANGE_DIM, border: `1px solid ${ORANGE_BORDER}`, borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ margin: "12px 20px 0", padding: "10px 14px", background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ display: "flex", gap: -4 }}>
               {uniqueFriends.slice(0, 3).map((f, i) => (
                 <div key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", border: "2px solid #080808", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", marginLeft: i > 0 ? -8 : 0, overflow: "hidden" }}>
@@ -882,9 +882,9 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
               ))}
             </div>
             <div style={{ flex: 1 }}>
-              <span style={{ color: ORANGE, fontSize: 12, fontWeight: 600 }}>{names}{extra}</span>
-              <span style={{ color: "#c084fc", fontSize: 12 }}> {uniqueFriends.length > 1 ? "ont" : "a"} vu cette série</span>
-              {avgRating && <span style={{ color: "#c084fc", fontSize: 12 }}> · ★ {avgRating} en moyenne</span>}
+              <span style={{ color: "#ccc", fontSize: 12, fontWeight: 600 }}>{names}{extra}</span>
+              <span style={{ color: "#555", fontSize: 12 }}> {uniqueFriends.length > 1 ? "ont" : "a"} vu cette série</span>
+              {avgRating && <span style={{ color: "#555", fontSize: 12 }}> · ★ {avgRating} en moyenne</span>}
             </div>
           </div>
         );
