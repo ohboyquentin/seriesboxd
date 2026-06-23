@@ -3237,7 +3237,7 @@ export default function SeriesBoxd() {
         call_911:         call911Condition,
         batman:           batmanCondition,
         indecis:          library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 20,
-        i_did_it:         completedSeries.some(s => (s.userRating||0) <= 1),
+        i_did_it:         completedSeries.some(s => (s.rating || 0) <= 1 && (s.rating || 0) > 0),
         guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
         le_fidele:        leFideleCondition,
         le_puriste:       lePuristeCondition,
