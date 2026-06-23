@@ -2505,7 +2505,7 @@ function formatRelativeTime(iso) {
 }
 
 // ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
-function PublicProfilePage({ userId, currentUserId, onOpen, onClose }) {
+function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], myWatchedEpisodes = {} }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -2556,6 +2556,47 @@ function PublicProfilePage({ userId, currentUserId, onOpen, onClose }) {
   const totalEps = Object.values(profile.watchedEpisodes || {}).reduce((a, eps) => a + Object.values(eps).filter(Boolean).length, 0);
   const recentActivity = (profile.activityLog || []).slice(0, 8);
   const favShows = profile.favShows?.length ? profile.favShows : watched.slice(0, 4);
+
+  // ── Calcul de compatibilité ────────────────────────────────────────────────
+  const compatibility = currentUserId && currentUserId !== userId ? (() => {
+    const myWatched = (myLibrary || []).filter(s => s.watched);
+    const theirWatched = (profile.library || []).filter(s => s.watched);
+
+    // 1. Genres en commun (33.3%)
+    const getGenres = (lib) => [...new Set(lib.flatMap(s => s.genres?.length ? s.genres : (s.genre ? [s.genre] : [])))];
+    const myGenres = getGenres(myWatched);
+    const theirGenres = getGenres(theirWatched);
+    const commonGenres = myGenres.filter(g => theirGenres.includes(g));
+    const totalGenres = new Set([...myGenres, ...theirGenres]).size;
+    const genreScore = totalGenres > 0 ? commonGenres.length / totalGenres : 0;
+
+    // 2. Séries en commun (33.3%)
+    const myIds = new Set(myWatched.map(s => s.tmdbId));
+    const theirIds = new Set(theirWatched.map(s => s.tmdbId));
+    const commonSeries = [...myIds].filter(id => theirIds.has(id));
+    const totalSeries = new Set([...myIds, ...theirIds]).size;
+    const seriesScore = totalSeries > 0 ? commonSeries.length / totalSeries : 0;
+
+    // 3. Notes similaires sur séries communes (33.3%)
+    const myRated = myWatched.filter(s => s.userRating);
+    const theirRated = theirWatched.filter(s => s.userRating);
+    const bothRated = myRated.filter(s => theirRated.find(t => t.tmdbId === s.tmdbId));
+    let ratingScore = 0;
+    if (bothRated.length > 0) {
+      const avgDiff = bothRated.reduce((acc, s) => {
+        const theirs = theirRated.find(t => t.tmdbId === s.tmdbId);
+        return acc + Math.abs(s.userRating - theirs.userRating);
+      }, 0) / bothRated.length;
+      ratingScore = Math.max(0, 1 - avgDiff / 5);
+    } else if (commonSeries.length === 0) {
+      ratingScore = 0;
+    } else {
+      ratingScore = 0.5; // séries en commun mais aucune notée des deux côtés
+    }
+
+    const total = Math.round(((genreScore + seriesScore + ratingScore) / 3) * 100);
+    return total;
+  })() : null;
   const ic = (sym, size=18) => <span style={{ color: ORANGE, fontSize: size, lineHeight: 1 }}>{sym}</span>;
   const ICONS = { watch: ic("\u25c9"), rate: ic("\u2605",20), review: ic("\u270e"), like: ic("\u2665"), episode: ic("\u25b6",15), watchlist: ic("\u25c8"), list: ic("\u2261"), rewatch: ic("\u21ba") };
 
@@ -2579,6 +2620,19 @@ function PublicProfilePage({ userId, currentUserId, onOpen, onClose }) {
           </button>
         )}
       </div>
+
+      {/* Compatibilité */}
+      {compatibility !== null && (
+        <div style={{ margin: "0 20px 16px", padding: "14px 16px", background: "#0e0e0e", border: "1px solid #1a1a1a", borderRadius: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: "#ccc", fontWeight: 600 }}>🎯 Compatibilité avec {profile.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: ORANGE }}>{compatibility}%</div>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: "#1a1a1a", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${compatibility}%`, borderRadius: 3, background: `linear-gradient(to right, ${ORANGE_BORDER}, ${ORANGE})`, transition: "width .6s ease" }} />
+          </div>
+        </div>
+      )}
 
       {profile.favGenres?.length > 0 && (
         <div style={{ margin: "0 20px 16px", padding: "14px 16px", background: "#1a1a1a", border: "1px solid rgba(219,157,228,0.94)", borderRadius: 14 }}>
@@ -4170,7 +4224,7 @@ export default function SeriesBoxd() {
 
         {/* Public Profile */}
         {viewingProfile && (
-          <PublicProfilePage userId={viewingProfile.userId} currentUserId={authUser?.id} onOpen={openSeries} onClose={() => setViewingProfile(null)} />
+          <PublicProfilePage userId={viewingProfile.userId} currentUserId={authUser?.id} onOpen={openSeries} onClose={() => setViewingProfile(null)} myLibrary={library} myWatchedEpisodes={watchedEpisodes} />
         )}
         {/* Followers Page */}
         {showFollowersPage && (
