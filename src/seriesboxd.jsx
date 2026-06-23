@@ -665,6 +665,13 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
+  const [epPopup, setEpPopup] = useState(null); // { ep, seasonN }
+
+  const openEpPopup = (e, ep, seasonN) => {
+    e.stopPropagation();
+    setEpPopup({ ep, seasonN });
+  };
+
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
@@ -755,6 +762,8 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             watched: false,
             still: ep.still_path ? `${IMG}/w300${ep.still_path}` : null,
             overview: ep.overview,
+            air_date: ep.air_date || null,
+            guest_stars: ep.guest_stars || [],
           })),
         })));
         setOpenSeason(seasonNums[0] || 1);
@@ -971,8 +980,9 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
               {season.episodes.map((ep, i) => {
                 const isWatched = !!watchedEps[epKey(season.n, ep.ep)];
                 return (
-                  <div key={i} onClick={() => toggleEpisode(season.n, ep.ep)} style={{ display: "flex", gap: 12, padding: "12px 20px", borderBottom: "1px solid #0e0e0e", alignItems: "flex-start", cursor: "pointer", background: isWatched ? "rgba(234,179,8,0.04)" : "transparent", transition: "background .15s" }}>
-                    <div style={{ width: 80, height: 46, borderRadius: 8, overflow: "hidden", background: "#141414", flexShrink: 0, position: "relative" }}>
+                  <div key={i} style={{ display: "flex", gap: 12, padding: "12px 20px", borderBottom: "1px solid #0e0e0e", alignItems: "flex-start", background: isWatched ? "rgba(234,179,8,0.04)" : "transparent", transition: "background .15s" }}>
+                    {/* Thumbnail — clic pour cocher */}
+                    <div onClick={() => toggleEpisode(season.n, ep.ep)} style={{ width: 80, height: 46, borderRadius: 8, overflow: "hidden", background: "#141414", flexShrink: 0, position: "relative", cursor: "pointer" }}>
                       {ep.still ? <img src={ep.still} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: isWatched ? 0.45 : 1, transition: "opacity .2s" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: 16 }}>▶</div>}
                       {isWatched && (
                         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -980,7 +990,8 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                         </div>
                       )}
                     </div>
-                    <div style={{ flex: 1 }}>
+                    {/* Infos — clic pour cocher aussi */}
+                    <div onClick={() => toggleEpisode(season.n, ep.ep)} style={{ flex: 1, cursor: "pointer" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div style={{ color: isWatched ? "#666" : "#fff", fontSize: 13, fontWeight: 500, flex: 1, paddingRight: 8, textDecoration: isWatched ? "line-through" : "none", transition: "color .2s" }}>{ep.title}</div>
                         <div style={{ color: "#444", fontSize: 11, flexShrink: 0 }}>{ep.duration}</div>
@@ -988,6 +999,8 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                       <div style={{ color: "#555", fontSize: 11, marginTop: 2 }}>S{season.n}E{ep.ep}</div>
                       {ep.overview && <div style={{ color: "#444", fontSize: 11, marginTop: 4, lineHeight: 1.4 }}>{ep.overview.slice(0,90)}{ep.overview.length>90?"…":""}</div>}
                     </div>
+                    {/* Bouton ℹ discret */}
+                    <button onClick={(e) => openEpPopup(e, ep, season.n)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", padding: "2px 4px", fontSize: 13, flexShrink: 0, alignSelf: "center", lineHeight: 1 }}>ℹ</button>
                   </div>
                 );
               })}
@@ -1040,6 +1053,43 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           </div>
         </div>
       )}
+      {/* Episode detail popup */}
+      {epPopup && (() => {
+        const { ep, seasonN } = epPopup;
+        const isWatched = !!watchedEps[epKey(seasonN, ep.ep)];
+        const airDate = ep.air_date ? new Date(ep.air_date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
+        return (
+          <div onClick={() => setEpPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 999, display: "flex", alignItems: "flex-end", justifyContent: "center", maxWidth: 440, margin: "0 auto" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#0f0f0f", borderRadius: "20px 20px 0 0", width: "100%", border: "1px solid #1e1e1e", borderBottom: "none", maxHeight: "85vh", overflowY: "auto" }}>
+              {ep.still && <img src={ep.still} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: "20px 20px 0 0" }} />}
+              <div style={{ padding: "20px 20px 40px" }}>
+                <div style={{ width: 36, height: 3, background: "#2a2a2a", borderRadius: 2, margin: "0 auto 20px" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div style={{ flex: 1, paddingRight: 12 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.3 }}>{ep.title}</div>
+                    <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>S{seasonN}E{ep.ep}{ep.duration ? ` · ${ep.duration}` : ""}</div>
+                  </div>
+                </div>
+                {airDate && <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>📅 {airDate}</div>}
+                {ep.overview && <div style={{ fontSize: 13, color: "#999", lineHeight: 1.7, marginBottom: 16 }}>{ep.overview}</div>}
+                {ep.guest_stars?.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Guest stars</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {ep.guest_stars.slice(0, 8).map((g, i) => (
+                        <span key={i} style={{ background: "#141414", border: "1px solid #222", color: "#777", fontSize: 11, padding: "4px 10px", borderRadius: 20 }}>{g.name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button onClick={() => { toggleEpisode(seasonN, ep.ep); setEpPopup(null); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isWatched ? "#1a1a1a" : ORANGE_DIM, border: `1px solid ${isWatched ? "#2a2a2a" : ORANGE_BORDER}`, color: isWatched ? "#666" : ORANGE, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                  {isWatched ? "Retirer du visionnage" : "Marquer comme vu"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
