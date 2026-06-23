@@ -1060,9 +1060,10 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
         const airDate = ep.air_date ? new Date(ep.air_date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
         return (
           <div onClick={() => setEpPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 999, display: "flex", alignItems: "flex-end", justifyContent: "center", maxWidth: 440, margin: "0 auto" }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: "#0f0f0f", borderRadius: "20px 20px 0 0", width: "100%", border: "1px solid #1e1e1e", borderBottom: "none", maxHeight: "85vh", overflowY: "auto" }}>
-              {ep.still && <img src={ep.still} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: "20px 20px 0 0" }} />}
-              <div style={{ padding: "20px 20px 40px" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#0f0f0f", borderRadius: "20px 20px 0 0", width: "100%", border: "1px solid #1e1e1e", borderBottom: "none", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+              {ep.still && <img src={ep.still} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: "20px 20px 0 0", flexShrink: 0 }} />}
+              {/* Scrollable content */}
+              <div style={{ overflowY: "auto", flex: 1, padding: "20px 20px 0" }}>
                 <div style={{ width: 36, height: 3, background: "#2a2a2a", borderRadius: 2, margin: "0 auto 20px" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div style={{ flex: 1, paddingRight: 12 }}>
@@ -1073,7 +1074,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                 {airDate && <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>📅 {airDate}</div>}
                 {ep.overview && <div style={{ fontSize: 13, color: "#999", lineHeight: 1.7, marginBottom: 16 }}>{ep.overview}</div>}
                 {ep.guest_stars?.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
+                  <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Guest stars</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {ep.guest_stars.slice(0, 8).map((g, i) => (
@@ -1082,6 +1083,9 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                     </div>
                   </div>
                 )}
+              </div>
+              {/* Bouton toujours visible en bas */}
+              <div style={{ padding: "14px 20px 36px", flexShrink: 0, borderTop: "1px solid #111" }}>
                 <button onClick={() => { toggleEpisode(seasonN, ep.ep); setEpPopup(null); }} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isWatched ? "#1a1a1a" : ORANGE_DIM, border: `1px solid ${isWatched ? "#2a2a2a" : ORANGE_BORDER}`, color: isWatched ? "#666" : ORANGE, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                   {isWatched ? "Retirer du visionnage" : "Marquer comme vu"}
                 </button>
