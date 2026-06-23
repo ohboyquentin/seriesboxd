@@ -4146,9 +4146,9 @@ export default function SeriesBoxd() {
                     </div>
                   )}
                 </div>
-                <div style={{ padding: "14px 20px 44px", flexShrink: 0, borderTop: "1px solid #111" }}>
-                  <button onClick={handleToggle} style={{ width: "100%", padding: "14px", borderRadius: 14, background: isWatched ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (isWatched ? "#2a2a2a" : ORANGE_BORDER), color: isWatched ? "#666" : ORANGE, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                    {isWatched ? "Retirer du visionnage" : "Marquer comme vu"}
+                <div style={{ padding: "12px 20px 44px", flexShrink: 0 }}>
+                  <button onClick={handleToggle} style={{ display: "block", margin: "0 auto", padding: "9px 24px", borderRadius: 20, background: "none", border: `1px solid ${isWatched ? "#2a2a2a" : ORANGE_BORDER}`, color: isWatched ? "#444" : ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    {isWatched ? "✓ Vu" : "Marquer comme vu"}
                   </button>
                 </div>
               </div>
