@@ -1665,15 +1665,38 @@ function saveLocalData(data, userId) {
 
 async function loadSavedData(userId) {
   const local = loadLocalData(userId);
+  // Vérifie aussi l'ancienne clé sans userId (migration)
+  const legacyLocal = loadLocalData(null);
   if (!userId) return local;
   try {
     const { data, error } = await supabase
       .from("profiles").select("data").eq("id", userId).single();
-    if (!error && data?.data && Object.keys(data.data).length > 0) {
-      saveLocalData(data.data, userId);
-      return data.data;
+    if (!error && data?.data) {
+      const remote = data.data;
+      // Prend les données les plus complètes : plus de séries = meilleure source
+      const remoteLib = (remote.library || []).length;
+      const localLib  = (local.library  || []).length;
+      const legacyLib = (legacyLocal.library || []).length;
+
+      let best = remote;
+      if (localLib > remoteLib) best = local;
+      if (legacyLib > Math.max(remoteLib, localLib)) best = legacyLocal;
+
+      // S'assure qu'onboarded est true si l'une des sources le dit
+      if (local.onboarded || remote.onboarded || legacyLocal.onboarded) {
+        best = { ...best, onboarded: true };
+      }
+
+      // Resauvegarde la meilleure version en local et en Supabase si différente
+      saveLocalData(best, userId);
+      if (best !== remote) {
+        supabase.from("profiles").upsert({ id: userId, data: best, updated_at: new Date().toISOString() }).catch(() => {});
+      }
+      return best;
     }
   } catch (e) { console.warn("Supabase load:", e.message); }
+  // Pas de données Supabase — utilise local ou legacy
+  if (legacyLocal.library?.length > (local.library?.length || 0)) return legacyLocal;
   return local;
 }
 
