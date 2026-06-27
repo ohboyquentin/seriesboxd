@@ -1384,7 +1384,7 @@ function Onboarding({ onComplete }) {
           <div style={{ fontSize: 36, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.1, marginBottom: 16 }}>Series<span style={{ color: ORANGE }}>Boxd</span></div>
           <div style={{ color: "#666", fontSize: 16, lineHeight: 1.6, marginBottom: 48 }}>Suis tes séries, partage tes critiques et découvre ce que regardent tes amis.</div>
           <button onClick={goNext} style={{ width: "100%", padding: "16px", background: ORANGE, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>Commencer →</button>
-          <div style={{ marginTop: 16, color: "#333", fontSize: 13 }}>Déjà un compte ? <span style={{ color: ORANGE }}>Se connecter</span></div>
+          <div onClick={async () => { await supabase.auth.signOut(); }} style={{ marginTop: 16, color: "#333", fontSize: 13, cursor: "pointer" }}>Déjà un compte ? <span style={{ color: ORANGE }}>Se connecter</span></div>
         </div>
       )}
       {step === 1 && (
