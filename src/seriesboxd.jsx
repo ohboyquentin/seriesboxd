@@ -3307,6 +3307,8 @@ export default function SeriesBoxd() {
     setViewingProfile(null);
     setShowFollowersPage(false);
     setShowFollowingPage(false);
+    setEpPopup(null);
+    setConfirm(null);
     setTab("home");
 
     const saved = await loadSavedData(uid);
@@ -3542,7 +3544,11 @@ export default function SeriesBoxd() {
     </div>
   );
 
-  if (!authUser) return <AuthScreen />;
+  if (!authUser) return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 99999 }}>
+      <AuthScreen />
+    </div>
+  );
 
   if (!onboarded) return (
     <div style={{ height: "100vh", background: "#080808", display: "flex", justifyContent: "center", fontFamily: "'DM Sans',system-ui,sans-serif" }}>
