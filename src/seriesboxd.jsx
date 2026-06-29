@@ -6,10 +6,7 @@ const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: {
     persistSession: true,
-    storageKey: "seriesboxd-auth",
-    storage: window.localStorage,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
   }
 });
 
