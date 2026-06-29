@@ -1692,10 +1692,12 @@ async function loadSavedData(userId) {
         best = { ...best, onboarded: true };
       }
 
-      // Resauvegarde la meilleure version en local et en Supabase si différente
+      // Resauvegarde la meilleure version en Supabase si différente
       saveLocalData(best, userId);
       if (best !== remote) {
-        supabase.from("profiles").upsert({ id: userId, data: best, updated_at: new Date().toISOString() }).catch(() => {});
+        try {
+          await supabase.from("profiles").upsert({ id: userId, data: best, updated_at: new Date().toISOString() });
+        } catch(e) { console.warn("Supabase resync:", e); }
       }
       return best;
     }
@@ -1706,7 +1708,25 @@ async function loadSavedData(userId) {
 }
 
 async function persistData(data, userId) {
-  saveLocalData(data, userId);
+  // localStorage : version allégée (sans activityLog ni watchedEpisodes qui sont volumineux)
+  const localData = {
+    onboarded: data.onboarded,
+    user: data.user,
+    library: (data.library || []).map(s => ({
+      tmdbId: s.tmdbId, title: s.title, poster: s.poster,
+      watched: s.watched, userRating: s.userRating, inWatchlist: s.inWatchlist,
+      episodes: s.episodes, seasons: s.seasons, genre: s.genre, genres: s.genres,
+      year: s.year, status: s.status, origin_country: s.origin_country,
+    })),
+    watchHistory: data.watchHistory,
+    lists: data.lists,
+    tags: data.tags,
+    pinnedBadgeIds: data.pinnedBadgeIds,
+    unlockedBadgeIds: data.unlockedBadgeIds,
+    rewatchCounts: data.rewatchCounts,
+  };
+  try { saveLocalData(localData, userId); } catch(e) {}
+  // Supabase : données complètes
   if (!userId) return;
   try {
     await supabase.from("profiles").upsert({ id: userId, data, updated_at: new Date().toISOString() });
