@@ -178,7 +178,10 @@ function computeStats(w, watchedEps = {}) {
     return a + epCount * 42;
   }, 0);
   const gc = {};
-  w.forEach(s => { gc[s.genre] = (gc[s.genre] || 0) + 1; });
+  w.forEach(s => {
+    const genres = (s.genres && s.genres.length > 0) ? s.genres : (s.genre && s.genre !== "Série" ? [s.genre] : []);
+    genres.forEach(g => { gc[g] = (gc[g] || 0) + 1; });
+  });
   const genreData = Object.entries(gc).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const ratingDist = [1,2,3,4,5].map(r => ({ star: r, count: w.filter(s => s.userRating === r).length }));
   const rated = w.filter(s => s.userRating);
