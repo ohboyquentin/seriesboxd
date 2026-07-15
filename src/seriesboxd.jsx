@@ -45,7 +45,8 @@ function getCacheTTL(path) {
 
 async function tmdbViaClaude(path, params = {}) {
   const qs  = new URLSearchParams(params).toString();
-  const url = `${PROXY_URL}/tmdb${path}${qs ? "?" + qs : ""}`;
+  const base = PROXY_URL ? `${PROXY_URL}/tmdb` : "/api/tmdb";
+  const url = `${base}${path}${qs ? "?" + qs : ""}`;
   const cacheKey = url;
   const ttl = getCacheTTL(path);
   const now = Date.now();
