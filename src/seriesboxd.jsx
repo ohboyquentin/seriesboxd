@@ -14,6 +14,9 @@ const ORANGE = "#eca6ee";
 const ORANGE_DIM = "rgba(192, 28, 207, 0.17)";
 const ORANGE_BORDER = "rgba(219, 157, 228, 0.94)";
 const IMG = "https://image.tmdb.org/t/p";
+// Date de lancement de l'app — sert de référence fixe pour le badge "Précurseur".
+// ⚠️ À ajuster si besoin pour correspondre à la vraie date de mise en ligne publique.
+const APP_LAUNCH_DATE = new Date("2025-01-01T00:00:00Z");
 
 // ─── TMDB via proxy local (rapide, sans passer par Claude) ────────────────────
 
@@ -145,6 +148,7 @@ function adaptShow(t) {
     poster: posterUrl(t.poster_path),
     backdrop: backdropUrl(t.backdrop_path),
     episodes: t.number_of_episodes || 0,
+    voteCount: typeof t.vote_count === "number" ? t.vote_count : null,
     overview: t.overview || "",
     network: t.networks?.[0]?.name || "—",
     creator: t.created_by?.map(c => c.name).join(", ") || "—",
@@ -779,6 +783,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             genres: genresArr,
             genre: genresArr[0] || series.genre,
             origin_country: full.origin_country || [],
+            voteCount: typeof full.vote_count === "number" ? full.vote_count : series.voteCount,
           });
         }
       } catch(e) { setDetailError(true); console.error(e); }
@@ -1720,7 +1725,7 @@ async function persistData(data, userId) {
       tmdbId: s.tmdbId, title: s.title, poster: s.poster,
       watched: s.watched, userRating: s.userRating, inWatchlist: s.inWatchlist,
       episodes: s.episodes, seasons: s.seasons, genre: s.genre, genres: s.genres,
-      year: s.year, status: s.status, origin_country: s.origin_country,
+      year: s.year, status: s.status, origin_country: s.origin_country, voteCount: s.voteCount,
     })),
     watchHistory: data.watchHistory,
     lists: data.lists,
@@ -2038,7 +2043,7 @@ const ALL_BADGES = [
   { id:"sans_repit",        cat:"Complétion",  icon:"🏴",  name:"Sans répit",           desc:"Terminer 25 séries différentes",                  color:"#8fa36b" },
   { id:"papillonneur",      cat:"Complétion",  icon:"🦋",  name:"Le Papillonneur",      desc:"Terminer 50 séries différentes",                  color:"#8fa36b" },
   { id:"collec_fins",       cat:"Complétion",  icon:"🏆",  name:"Collectionneur de fins",desc:"Terminer 100 séries différentes",                color:"#c2a84b" },
-  { id:"cent_pourcent",     cat:"Complétion",  icon:"💯",  name:"100%",                 desc:"Toutes les séries de sa bibliothèque terminées",  color:"#c2a84b" },
+  { id:"cent_pourcent",     cat:"Complétion",  icon:"💯",  name:"100%",                 desc:"Terminer toutes les séries de son \"Keep watching\"",  color:"#c2a84b" },
   { id:"legende",           cat:"Complétion",  icon:"👑",  name:"Légende",              desc:"1000 heures de visionnage cumulées",              color:"#c2a84b" },
   { id:"un_pourcent",       cat:"Complétion",  icon:"🥇",  name:"1%",                   desc:"Badge détenu par moins de 1% des membres",        color:"#8a6ba3" },
 
@@ -2077,7 +2082,7 @@ const ALL_BADGES = [
   { id:"hibernation",       cat:"Spéciaux",    icon:"❄️",  name:"Hibernation",          desc:"Regarder une saison complète en une journée d'hiver",  color:"#6b8fa3" },
   { id:"derniere_min",      cat:"Spéciaux",    icon:"⌚",  name:"Dernière minute",      desc:"Finir une saison le jour de la sortie de la suivante", color:"#a38a6b" },
   { id:"noel",              cat:"Spéciaux",    icon:"🎄",  name:"Noël en série",        desc:"Regarder un épisode le 25 décembre",              color:"#a36b6b" },
-  { id:"halloween",         cat:"Spéciaux",    icon:"🎃",  name:"Halloween",            desc:"Regarder 5 épisodes d'horreur en octobre",        color:"#a36b6b" },
+  { id:"halloween",         cat:"Spéciaux",    icon:"🎃",  name:"Halloween",            desc:"Regarder un épisode ou une série le 31 octobre",  color:"#a36b6b" },
   { id:"st_valentin",       cat:"Spéciaux",    icon:"💝",  name:"Saint-Valentin",       desc:"Regarder une romance le 14 février",              color:"#a36b8a" },
   { id:"summer",            cat:"Spéciaux",    icon:"☀️",  name:"Summer Binge",         desc:"100 épisodes vus pendant l'été",                  color:"#c2a84b" },
 
@@ -2091,7 +2096,7 @@ const ALL_BADGES = [
   { id:"batman",         cat:"Secrets", icon:"?", name:"Batman",             desc:"Regarder un épisode entre 3h00 et 5h00 du matin (lun-jeu)",        color:"#5b6fa3", secret:true },
   { id:"indecis",        cat:"Secrets", icon:"?", name:"Indécis",            desc:"Commencer 20 séries sans en terminer aucune",                      color:"#a38a6b", secret:true },
   { id:"i_did_it",       cat:"Secrets", icon:"?", name:"I did it!",          desc:"Terminer une série notée 1 étoile ou moins",                       color:"#6ba38a", secret:true },
-  { id:"guilty_pleasure",cat:"Secrets", icon:"?", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 2 étoiles", color:"#a36b8a", secret:true },
+  { id:"guilty_pleasure",cat:"Secrets", icon:"?", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 1 étoile", color:"#a36b8a", secret:true },
   { id:"le_fidele",      cat:"Secrets", icon:"?", name:"Le fidèle",          desc:"Plus de 50% du temps de visionnage sur une seule série",           color:"#c2a84b", secret:true },
   { id:"le_puriste",     cat:"Secrets", icon:"?", name:"Le Puriste",         desc:"Terminer 20 séries sans jamais en abandonner une",                 color:"#a38a6b", secret:true },
 ];
@@ -3072,7 +3077,8 @@ export default function SeriesBoxd() {
 
     // Heure d'activité (depuis activityLog timestamps)
     const hours = activityLog.map(a => a.ts ? new Date(a.ts).getHours() : -1);
-    const hasNightActivity   = hours.some(h => h >= 0 && h < 5);
+    const hasNightActivity      = hours.some(h => h >= 0 && h < 5);
+    const hasStrictNightActivity = hours.some(h => h >= 0 && h < 4); // 0h-3h59, dédié à "Oiseau de nuit" pour ne pas chevaucher "Lève-tôt"
     const hasEarlyActivity   = hours.some(h => h >= 4 && h <= 6);
 
     // Pays des séries (via s.origin_country ou s.country)
@@ -3120,6 +3126,7 @@ export default function SeriesBoxd() {
       maxNightStreak = Math.max(maxNightStreak, curNightStreak);
     }
     const maxSessionEps = maxEpsInDay;
+    const maxSessionMinutes = maxEpsInDay * 42; // ~42min/épisode, même estimation que dans computeStats
 
     const seasonsSeen = new Set();
     activityLog.forEach(a => {
@@ -3153,13 +3160,21 @@ export default function SeriesBoxd() {
     const leFideleCondition = totalEpsAll > 0 && (maxSingleSeriesEps / totalEpsAll) >= 0.5;
     const lePuristeCondition = completedSeries.length >= 20 && abandonCount === 0;
 
+    // Séries "en cours" = mêmes critères que la section Keep watching (au moins 1 épisode coché, pas encore marquée "vue")
+    const startedSeries = library.filter(s => {
+      const eps = watchedEpisodes[s.tmdbId];
+      return eps && Object.values(eps).some(Boolean);
+    });
+    const keepWatchingInProgress = startedSeries.filter(s => !completedSeries.find(c => c.tmdbId === s.tmdbId));
+    const centPourcentCondition = startedSeries.length > 0 && keepWatchingInProgress.length === 0;
+
     const premiers_pas =   totalEpisodes >= 1;
     const accro =          totalEpisodes >= 50;
     const seriphile =      totalEpisodes >= 100;
     const binge_master =   totalEpisodes >= 200;
     const marathonien =    totalEpisodes >= 500;
     const legende_canape = totalEpisodes >= 1000;
-    const oiseau_nuit =    hasNightActivity;
+    const oiseau_nuit =    hasStrictNightActivity;
     const leve_tot =       hasEarlyActivity;
     const sprinteur =      maxEpsInDay >= 10;
     const adieu =          completedSeries.some(s => (s.episodes || 0) > 100);
@@ -3171,7 +3186,7 @@ export default function SeriesBoxd() {
     });
     const weekend =        weekendTotal >= 15;
     const insomniaque =    maxNightStreak >= 7;
-    const session_canap =  maxSessionEps >= 18;
+    const session_canap =  maxSessionMinutes >= 300; // 5h cumulées dans une même journée
 
     const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
     let count48 = 0;
@@ -3196,10 +3211,10 @@ export default function SeriesBoxd() {
         "sévère":         avgRating > 0 && avgRating < 2.5,
         equilibre:        allStarValues.every(v => usedRatings.has(v)),
         gout_luxe:        avgRating >= 4 && ratings.length >= 5,
-        mauvais_gout:     watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
+        mauvais_gout:     watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) > 0 && (s.rating || 0) < 2),
         pourquoi:         library.some(s => s.userRating === 1 && watchedEpisodes[s.tmdbId] && Object.values(watchedEpisodes[s.tmdbId]).filter(Boolean).length > 1),
         fond_trou:        fiveStars.filter(s => (s.genres || []).some(g => g.toLowerCase().includes("drame"))).length >= 5,
-        pepite_cachee:    fiveStars.some(s => (s.voteCount || s.popularity || 9999) < 500),
+        pepite_cachee:    fiveStars.some(s => typeof s.voteCount === "number" && s.voteCount > 0 && s.voteCount < 300),
 
         // Critiques
         premier_mot:      totalReviews >= 1,
@@ -3225,14 +3240,14 @@ export default function SeriesBoxd() {
         curieux:          genresSeen.length >= 5,
         explorateur:      genresSeen.length >= 10,
         cameleon:         genresSeen.length >= 15,
-        omnivore:         genresSeen.length >= 18,
+        omnivore:         [...new Set(Object.values(GENRE_MAP))].every(g => genresSeen.includes(g)),
         galactique:       watchedSeries.length >= 20 && genresSeen.length >= 10,
         fan_crime:        (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         profiler:         seriesByGenre("crime").length >= 10,
         spatial:          (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("sci"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         seul_mars:        seriesByGenre("sci").length >= 10,
         clown:            seriesByGenre("comédie").length >= 10,
-        detective:        (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("policier"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
+        detective:        (watchedSeries.filter(s => getGenres(s).some(g=>g.toLowerCase().includes("thriller")||g.toLowerCase().includes("crime"))).reduce((a,s) => a + Object.values(watchedEpisodes[s.tmdbId]||{}).filter(Boolean).length, 0)) >= 50,
         briseur:          seriesByGenre("drame").length >= 10,
         ghostbuster:      seriesByGenre("horreur").length >= 10,
         lover:            seriesByGenre("romance").length >= 10,
@@ -3262,7 +3277,7 @@ export default function SeriesBoxd() {
         sans_repit:       completedSeries.length >= 25,
         papillonneur:     completedSeries.length >= 50,
         collec_fins:      completedSeries.length >= 100,
-        cent_pourcent:    libSize > 0 && completedSeries.length === libSize,
+        cent_pourcent:    centPourcentCondition,
         legende:          totalEpisodes >= 5000,
         un_pourcent:      false, // badge admin uniquement
 
@@ -3288,7 +3303,7 @@ export default function SeriesBoxd() {
         fidele:           daysSince >= 30,
         ancien:           daysSince >= 365,
         veteran:          daysSince >= 1095,
-        precurseur:       daysSince <= 365,
+        precurseur:       joinDate.getTime() >= APP_LAUNCH_DATE.getTime() && (joinDate.getTime() - APP_LAUNCH_DATE.getTime()) <= 365 * 86400000,
         survivant:        completedSeries.filter(s => s.status === "Annulée" || s.cancelled).length >= 10,
         parieur:          library.some(s => (s.voteCount || s.popularity || 9999) < 100),
         testeur:          pilotOnly.length >= 20,
@@ -3301,11 +3316,10 @@ export default function SeriesBoxd() {
         hibernation:      hibernationDone,
         derniere_min:     false, // nécessite dates de sortie saisons TMDB
         noel:             activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===25 && d.getMonth()===11; }),
-        halloween:        activityLog.filter(a => {
+        halloween:        activityLog.some(a => {
           const d = new Date(a.ts||0);
-          return a.type === "episode" && d.getMonth() === 9 &&
-            watchedSeries.find(s => s.tmdbId === a.seriesId && (s.genres||[]).some(g => g.toLowerCase().includes("horreur")));
-        }).length >= 5,
+          return a.type === "episode" && d.getMonth() === 9 && d.getDate() === 31;
+        }),
         st_valentin:      activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===14 && d.getMonth()===1; }),
         summer:           summerEps >= 100,
 
@@ -3319,7 +3333,7 @@ export default function SeriesBoxd() {
         batman:           batmanCondition,
         indecis:          library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 20,
         i_did_it:         completedSeries.some(s => (s.rating || 0) <= 1 && (s.rating || 0) > 0),
-        guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) < 4),
+        guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) > 0 && (s.rating || 0) < 1),
         le_fidele:        leFideleCondition,
         le_puriste:       lePuristeCondition,
       };
