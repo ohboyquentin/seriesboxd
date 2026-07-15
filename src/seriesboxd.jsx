@@ -676,7 +676,7 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [] }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [] }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
@@ -1083,9 +1083,45 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                 <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
                   <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
                 </button>
+                <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
               </div>
             ))}
             {!localReviews.length && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewComments({ review, onAddComment }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const comments = review.comments || [];
+  const submit = () => {
+    if (!text.trim()) return;
+    onAddComment(text.trim());
+    setText("");
+  };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: "#555", fontSize: 12 }}>
+        <span>💬</span><span>{comments.length > 0 ? `${comments.length} commentaire${comments.length > 1 ? "s" : ""}` : "Commenter"}</span>
+      </div>
+      {open && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {comments.map((c, i) => (
+            <div key={c.id || i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 10, flexShrink: 0 }}>{c.avatar}</div>
+              <div style={{ flex: 1 }}>
+                <span style={{ color: "#ccc", fontSize: 12, fontWeight: 600 }}>{c.user}</span>
+                <span style={{ color: "#888", fontSize: 12 }}> {c.text}</span>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} placeholder="Ajouter un commentaire…" style={{ flex: 1, padding: "8px 12px", background: "#141414", border: "1px solid #222", borderRadius: 20, color: "#fff", fontSize: 12, outline: "none", fontFamily: "'DM Sans',system-ui,sans-serif" }} />
+            <button onClick={submit} disabled={!text.trim()} style={{ padding: "8px 14px", borderRadius: 20, background: text.trim() ? ORANGE_DIM : "#111", border: `1px solid ${text.trim() ? ORANGE_BORDER : "#222"}`, color: text.trim() ? ORANGE : "#444", fontSize: 12, cursor: text.trim() ? "pointer" : "default", flexShrink: 0 }}>Envoyer</button>
           </div>
         </div>
       )}
@@ -2070,7 +2106,7 @@ const ALL_BADGES = [
   { id:"ancien",            cat:"Spéciaux",    icon:"🎂",  name:"Ancien",               desc:"Membre depuis 1 an",                              color:"#8fa36b" },
   { id:"veteran",           cat:"Spéciaux",    icon:"🏅",  name:"Vétéran",              desc:"Membre depuis 3 ans",                             color:"#c2a84b" },
   { id:"precurseur",        cat:"Spéciaux",    icon:"🌟",  name:"Précurseur",           desc:"Compte créé durant la première année",            color:"#8a6ba3" },
-  { id:"survivant",         cat:"Spéciaux",    icon:"💀",  name:"Survivant",            desc:"Terminer 10 séries annulées",                     color:"#a36b6b" },
+  { id:"survivant",         cat:"Spéciaux",    icon:"💀",  name:"Survivant",            desc:"Marquer 10 épisodes comme vus en moins de 24h",   color:"#a36b6b" },
   { id:"parieur",           cat:"Spéciaux",    icon:"🎲",  name:"Parieur",              desc:"Suivre une série avec < 100 utilisateurs",        color:"#8a6ba3" },
   { id:"testeur",           cat:"Spéciaux",    icon:"🧪",  name:"Testeur pilote",       desc:"Regarder le 1er épisode de 20 séries différentes",  color:"#6b7aa3" },
   { id:"nostalgique",       cat:"Spéciaux",    icon:"🔁",  name:"Nostalgique",          desc:"Revoir 5 séries déjà terminées",                    color:"#6ba38a" },
@@ -2859,15 +2895,19 @@ function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
 
 // ─── UPCOMING PAGE ────────────────────────────────────────────────────────────
 
-function UpcomingPage({ library }) {
+function UpcomingPage({ library, watchedEpisodes = {} }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (library.length === 0) { setLoading(false); return; }
 
-    // Toutes les séries avec lesquelles on a interagi
-    const candidates = library.filter(s => s.watched || s.inWatchlist);
+    // Séries vues, en cours de visionnage ("Keep watching"), ou en watchlist
+    const isInProgress = (s) => {
+      const eps = watchedEpisodes[s.tmdbId];
+      return eps && Object.values(eps).some(Boolean) && !s.watched;
+    };
+    const candidates = library.filter(s => s.watched || isInProgress(s) || s.inWatchlist);
 
     (async () => {
       const results = [];
@@ -3023,6 +3063,7 @@ export default function SeriesBoxd() {
     const allReviews     = Object.values(extraReviews).flat();
     const totalReviews   = allReviews.length;
     const totalLikesGiven = activityLog.filter(a => a.type === "like").length;
+    const totalCommentsGiven = activityLog.filter(a => a.type === "comment").length;
     const watchedSeries  = library.filter(s => s.watched);
     const libSize        = library.filter(s => s.watched).length;
     const watchlistSize  = library.filter(s => s.inWatchlist).length;
@@ -3190,12 +3231,16 @@ export default function SeriesBoxd() {
 
     const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
     let count48 = 0;
+    let count24 = 0;
     for (let i = 0; i < sortedEpActs.length; i++) {
       const start = new Date(sortedEpActs[i].ts||0).getTime();
-      const inWindow = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 172800000; }).length;
-      count48 = Math.max(count48, inWindow);
+      const inWindow48 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 172800000; }).length;
+      const inWindow24 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 86400000; }).length;
+      count48 = Math.max(count48, inWindow48);
+      count24 = Math.max(count24, inWindow24);
     }
     const call911Condition = count48 >= 50;
+    const survivantCondition = count24 >= 10;
     const batHours = activityLog.filter(a => { const d = new Date(a.ts||0); return d.getHours() >= 3 && d.getHours() < 5; }).map(a => new Date(a.ts||0).getDay());
     const batmanCondition = hours.some(h => h >= 3 && h < 5) && batHours.some(d => d >= 1 && d <= 4);
 
@@ -3290,8 +3335,8 @@ export default function SeriesBoxd() {
         rok_star:         followerCount >= 200,
         fan:              totalLikesGiven >= 10,
         ambassadeur:      totalLikesGiven >= 25,
-        premier_echange:  totalReviews >= 1,
-        debatteur:        totalReviews >= 50,
+        premier_echange:  totalCommentsGiven >= 1,
+        debatteur:        totalCommentsGiven >= 50,
         prem_interaction: totalLikesGiven >= 1,
 
         // Spéciaux
@@ -3304,7 +3349,7 @@ export default function SeriesBoxd() {
         ancien:           daysSince >= 365,
         veteran:          daysSince >= 1095,
         precurseur:       joinDate.getTime() >= APP_LAUNCH_DATE.getTime() && (joinDate.getTime() - APP_LAUNCH_DATE.getTime()) <= 365 * 86400000,
-        survivant:        completedSeries.filter(s => s.status === "Annulée" || s.cancelled).length >= 10,
+        survivant:        survivantCondition,
         parieur:          library.some(s => (s.voteCount || s.popularity || 9999) < 100),
         testeur:          pilotOnly.length >= 20,
         nostalgique:      nostalgicCount >= 5,
@@ -3568,6 +3613,24 @@ export default function SeriesBoxd() {
     if (!alreadyLiked && series) addActivity("like", `Tu as aimé la critique de ${review?.user || "quelqu'un"} sur ${series.title}`);
   };
 
+  const handleAddComment = (sid, rid, text) => {
+    if (!text.trim()) return;
+    const cur = extraReviews[sid] || [];
+    const review = cur.find(r => r.id === rid);
+    const series = library.find(s => s.tmdbId === sid);
+    const comment = { id: Date.now() + Math.random(), user: user.name, avatar: user.name[0].toUpperCase(), text: text.trim(), ts: new Date().toISOString() };
+    setExtraReviews(p => ({ ...p, [sid]: cur.map(r => r.id===rid ? { ...r, comments: [...(r.comments||[]), comment] } : r) }));
+    addActivity("comment", `Tu as commenté la critique de ${review?.user || "quelqu'un"} sur ${series?.title || "une série"}`);
+  };
+
+  const toggleListLike = (listId) => {
+    setLists(prev => prev.map(l => {
+      if (l.id !== listId) return l;
+      const nowLiked = !l.likedByMe;
+      return { ...l, likedByMe: nowLiked, likes: Math.max(0, (l.likes || 0) + (nowLiked ? 1 : -1)) };
+    }));
+  };
+
   const handleAddTag = (tmdbId, tag) => {
     setTags(prev => {
       const existing = prev[tmdbId] || [];
@@ -3636,7 +3699,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onAddComment={handleAddComment} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
@@ -4015,7 +4078,7 @@ export default function SeriesBoxd() {
         )}
         {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
         {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
-        {showUpcomingPage && <UpcomingPage library={library} />}
+        {showUpcomingPage && <UpcomingPage library={library} watchedEpisodes={watchedEpisodes} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
 
         {/* Watchlist Page */}
@@ -4057,7 +4120,7 @@ export default function SeriesBoxd() {
                       <div style={{ flex: 1 }}>
                         <div style={{ color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.3 }}>{list.name}</div>
                         {list.description ? <div style={{ color: "#555", fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>{list.description}</div> : null}
-                        <div style={{ color: "#444", fontSize: 11, marginTop: 6 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""} · {new Date(list.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}</div>
+                        <div style={{ color: "#444", fontSize: 11, marginTop: 6 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""} · {new Date(list.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}{list.likes > 0 && <span style={{ color: list.likedByMe ? ORANGE : "#444" }}> · {list.likedByMe ? "♥" : "♡"} {list.likes}</span>}</div>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 4, flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
@@ -4108,6 +4171,8 @@ export default function SeriesBoxd() {
                 description: listDesc.trim(),
                 items: selectedItems,
                 createdAt: new Date().toISOString(),
+                likes: 0,
+                likedByMe: false,
               };
               setLists(prev => [newList, ...prev]);
               addActivity("list", `Tu as créé la liste "${newList.name}"`);
@@ -4223,9 +4288,14 @@ export default function SeriesBoxd() {
                   <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{list.name}</div>
                   <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""}</div>
                 </div>
-                <button onClick={() => askConfirm(`Supprimer la liste "${list.name}" ?`, () => { setLists(prev => prev.filter(l => l.id !== list.id)); setViewingList(null); })} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button onClick={() => toggleListLike(list.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: list.likedByMe ? ORANGE_DIM : "transparent", border: `1px solid ${list.likedByMe ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "6px 12px", cursor: "pointer", color: list.likedByMe ? ORANGE : "#555", fontSize: 12, flexShrink: 0 }}>
+                    <span>{list.likedByMe ? "♥" : "♡"}</span><span>{list.likes || 0}</span>
+                  </button>
+                  <button onClick={() => askConfirm(`Supprimer la liste "${list.name}" ?`, () => { setLists(prev => prev.filter(l => l.id !== list.id)); setViewingList(null); })} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  </button>
+                </div>
               </div>
               {list.description ? (
                 <div style={{ padding: "0 20px 20px", color: "#666", fontSize: 13, lineHeight: 1.6, borderBottom: "1px solid #111" }}>{list.description}</div>
