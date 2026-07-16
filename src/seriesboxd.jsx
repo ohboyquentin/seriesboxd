@@ -677,13 +677,15 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [] }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
   const [showForm, setShowForm] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [communityReviews, setCommunityReviews] = useState([]);
+  const [communityReviewsLoading, setCommunityReviewsLoading] = useState(true);
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -801,6 +803,21 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
   }, [loadDetail]);
 
   const localReviews = allReviews[series.tmdbId] || [];
+
+  useEffect(() => {
+    let cancelled = false;
+    setCommunityReviewsLoading(true);
+    fetchCommunityReviews(series.tmdbId, currentUserId)
+      .then(rs => { if (!cancelled) setCommunityReviews(rs); })
+      .catch(() => { if (!cancelled) setCommunityReviews([]); })
+      .finally(() => { if (!cancelled) setCommunityReviewsLoading(false); });
+    return () => { cancelled = true; };
+  }, [series.tmdbId, currentUserId]);
+
+  const allDisplayReviews = [
+    ...localReviews.map(r => ({ ...r, isMine: true })),
+    ...communityReviews.map(r => ({ ...r, isMine: false })),
+  ];
   const handleSubmit = () => {
     if (!reviewText.trim()) return;
     onAddReview(series.tmdbId, { text: reviewText, rating: reviewRating });
@@ -1069,9 +1086,9 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
               ✏️ Écrire une critique
             </button>
           )}
-          <div style={{ fontSize: 13, color: "#444", marginBottom: 14 }}>{localReviews.length} critique{localReviews.length!==1?"s":""}</div>
+          <div style={{ fontSize: 13, color: "#444", marginBottom: 14 }}>{allDisplayReviews.length} critique{allDisplayReviews.length!==1?"s":""}{communityReviewsLoading && <span style={{ color: "#333" }}> · chargement…</span>}</div>
           {(() => {
-            const sortedReviews = [...localReviews].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            const sortedReviews = [...allDisplayReviews].sort((a, b) => (b.likes || 0) - (a.likes || 0));
             const displayedReviews = showAllReviews ? sortedReviews : sortedReviews.slice(0, 3);
             const remaining = sortedReviews.length - displayedReviews.length;
             return (
@@ -1089,13 +1106,22 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
                       <StarRating value={rv.rating} size={12} />
                     </div>
                     <div style={{ color: "#bbb", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{rv.text}</div>
-                    <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
-                      <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
-                    </button>
-                    <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
+                    {rv.isMine ? (
+                      <>
+                        <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
+                          <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
+                        </button>
+                        <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#444", fontSize: 12 }}>
+                        <span>{rv.likes > 0 ? "♥" : "♡"}</span> <span>{rv.likes || 0} J'aime</span>
+                        {rv.comments?.length > 0 && <span style={{ marginLeft: 8 }}>💬 {rv.comments.length}</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
-                {!localReviews.length && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
+                {!allDisplayReviews.length && !communityReviewsLoading && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
                 {!showAllReviews && remaining > 0 && (
                   <button onClick={() => setShowAllReviews(true)} style={{ width: "100%", padding: "12px", background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, color: ORANGE, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                     Voir plus de critiques ({remaining})
@@ -2608,6 +2634,19 @@ async function searchUsers(query) {
     });
 }
 
+async function fetchCommunityReviews(tmdbId, excludeUserId) {
+  // Les critiques sont stockées dans le profil de chaque utilisateur (data.extraReviews),
+  // il faut donc parcourir les profils pour retrouver celles qui concernent cette série.
+  const { data } = await supabase.from("profiles").select("id, data").limit(200);
+  const result = [];
+  (data || []).forEach(row => {
+    if (row.id === excludeUserId) return; // tes propres critiques sont déjà gérées localement
+    const reviews = row.data?.extraReviews?.[tmdbId] || [];
+    reviews.forEach(r => result.push({ ...r, authorId: row.id }));
+  });
+  return result;
+}
+
 async function fetchUserProfile(userId) {
   const { data } = await supabase
     .from("profiles").select("id, data, updated_at").eq("id", userId).single();
@@ -3715,7 +3754,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onAddComment={handleAddComment} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onAddComment={handleAddComment} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} currentUserId={authUser?.id} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
