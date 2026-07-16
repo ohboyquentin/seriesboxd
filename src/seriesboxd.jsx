@@ -145,6 +145,7 @@ function adaptShow(t) {
     genre: tmdbGenre(genreInput),
     genres: genresArr,
     status: tmdbStatus(t.status),
+    rawStatus: t.status || null,
     poster: posterUrl(t.poster_path),
     backdrop: backdropUrl(t.backdrop_path),
     episodes: t.number_of_episodes || 0,
@@ -682,6 +683,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
   const [showForm, setShowForm] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -784,6 +786,8 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             genre: genresArr[0] || series.genre,
             origin_country: full.origin_country || [],
             voteCount: typeof full.vote_count === "number" ? full.vote_count : series.voteCount,
+            status: full.status ? tmdbStatus(full.status) : series.status,
+            rawStatus: full.status || series.rawStatus,
           });
         }
       } catch(e) { setDetailError(true); console.error(e); }
@@ -1066,28 +1070,40 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
             </button>
           )}
           <div style={{ fontSize: 13, color: "#444", marginBottom: 14 }}>{localReviews.length} critique{localReviews.length!==1?"s":""}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {localReviews.map((rv, i) => (
-              <div key={rv.id||i} style={{ background: "#0d0d0d", border: "1px solid #191919", borderRadius: 16, padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 14 }}>{rv.avatar}</div>
-                    <div>
-                      <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{rv.user}</div>
-                      <div style={{ color: "#444", fontSize: 11 }}>{rv.date}</div>
+          {(() => {
+            const sortedReviews = [...localReviews].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            const displayedReviews = showAllReviews ? sortedReviews : sortedReviews.slice(0, 3);
+            const remaining = sortedReviews.length - displayedReviews.length;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {displayedReviews.map((rv, i) => (
+                  <div key={rv.id||i} style={{ background: "#0d0d0d", border: "1px solid #191919", borderRadius: 16, padding: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 14 }}>{rv.avatar}</div>
+                        <div>
+                          <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{rv.user}</div>
+                          <div style={{ color: "#444", fontSize: 11 }}>{rv.date}</div>
+                        </div>
+                      </div>
+                      <StarRating value={rv.rating} size={12} />
                     </div>
+                    <div style={{ color: "#bbb", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{rv.text}</div>
+                    <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
+                      <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
+                    </button>
+                    <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
                   </div>
-                  <StarRating value={rv.rating} size={12} />
-                </div>
-                <div style={{ color: "#bbb", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{rv.text}</div>
-                <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
-                  <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
-                </button>
-                <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
+                ))}
+                {!localReviews.length && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
+                {!showAllReviews && remaining > 0 && (
+                  <button onClick={() => setShowAllReviews(true)} style={{ width: "100%", padding: "12px", background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, color: ORANGE, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Voir plus de critiques ({remaining})
+                  </button>
+                )}
               </div>
-            ))}
-            {!localReviews.length && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
-          </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -1761,7 +1777,7 @@ async function persistData(data, userId) {
       tmdbId: s.tmdbId, title: s.title, poster: s.poster,
       watched: s.watched, userRating: s.userRating, inWatchlist: s.inWatchlist,
       episodes: s.episodes, seasons: s.seasons, genre: s.genre, genres: s.genres,
-      year: s.year, status: s.status, origin_country: s.origin_country, voteCount: s.voteCount,
+      year: s.year, status: s.status, rawStatus: s.rawStatus, origin_country: s.origin_country, voteCount: s.voteCount,
     })),
     watchHistory: data.watchHistory,
     lists: data.lists,
@@ -2008,7 +2024,7 @@ const ALL_BADGES = [
   { id:"leve_tot",          cat:"Visionnage", icon:"🌅",  name:"Lève-tôt",             desc:"Regarder un épisode entre 4h et 6h",              color:"#c2a84b" },
   { id:"speedrunner",       cat:"Visionnage", icon:"🏃",  name:"Speedrunner",          desc:"Terminer une série en moins de 24h",              color:"#a36b6b" },
   { id:"adieu",             cat:"Visionnage", icon:"🌧️",  name:"Adieu",                desc:"Terminer une série de plus de 100 épisodes",       color:"#5b6fa3" },
-  { id:"sprinteur",         cat:"Visionnage", icon:"💨",  name:"Sprinteur",            desc:"Regarder 10 épisodes dans la même journée",       color:"#a36b6b" },
+  { id:"sprinteur",         cat:"Visionnage", icon:"💨",  name:"Sprinteur",            desc:"Regarder 10 épisodes en moins de 24h",             color:"#a36b6b" },
   { id:"weekend",           cat:"Visionnage", icon:"🏠",  name:"Week-end Marathon",    desc:"Regarder au moins 15 épisodes entre vendredi et dimanche",     color:"#8fa36b" },
   { id:"insomniaque",       cat:"Visionnage", icon:"😴",  name:"Insomniaque",          desc:"Regarder des épisodes 7 nuits consécutives",                   color:"#5b6fa3" },
   { id:"session_canap",     cat:"Visionnage", icon:"⏰",  name:"Session canapé",       desc:"Regarder des épisodes pendant 5 heures cumulées dans une journée",              color:"#6b8fa3" },
@@ -2106,7 +2122,7 @@ const ALL_BADGES = [
   { id:"ancien",            cat:"Spéciaux",    icon:"🎂",  name:"Ancien",               desc:"Membre depuis 1 an",                              color:"#8fa36b" },
   { id:"veteran",           cat:"Spéciaux",    icon:"🏅",  name:"Vétéran",              desc:"Membre depuis 3 ans",                             color:"#c2a84b" },
   { id:"precurseur",        cat:"Spéciaux",    icon:"🌟",  name:"Précurseur",           desc:"Compte créé durant la première année",            color:"#8a6ba3" },
-  { id:"survivant",         cat:"Spéciaux",    icon:"💀",  name:"Survivant",            desc:"Marquer 10 épisodes comme vus en moins de 24h",   color:"#a36b6b" },
+  { id:"survivant",         cat:"Spéciaux",    icon:"💀",  name:"Survivant",            desc:"Terminer 10 séries annulées",                     color:"#a36b6b" },
   { id:"parieur",           cat:"Spéciaux",    icon:"🎲",  name:"Parieur",              desc:"Suivre une série avec < 100 utilisateurs",        color:"#8a6ba3" },
   { id:"testeur",           cat:"Spéciaux",    icon:"🧪",  name:"Testeur pilote",       desc:"Regarder le 1er épisode de 20 séries différentes",  color:"#6b7aa3" },
   { id:"nostalgique",       cat:"Spéciaux",    icon:"🔁",  name:"Nostalgique",          desc:"Revoir 5 séries déjà terminées",                    color:"#6ba38a" },
@@ -3217,7 +3233,6 @@ export default function SeriesBoxd() {
     const legende_canape = totalEpisodes >= 1000;
     const oiseau_nuit =    hasStrictNightActivity;
     const leve_tot =       hasEarlyActivity;
-    const sprinteur =      maxEpsInDay >= 10;
     const adieu =          completedSeries.some(s => (s.episodes || 0) > 100);
     const speedrunner =    completedSeries.some(s => {
       const seriesActs = activityLog.filter(a => a.label?.includes(s.title));
@@ -3240,7 +3255,8 @@ export default function SeriesBoxd() {
       count24 = Math.max(count24, inWindow24);
     }
     const call911Condition = count48 >= 50;
-    const survivantCondition = count24 >= 10;
+    const sprinteur = count24 >= 10; // 10 épisodes vus en moins de 24h glissantes
+    const survivantCondition = completedSeries.filter(s => s.rawStatus === "Canceled").length >= 10;
     const batHours = activityLog.filter(a => { const d = new Date(a.ts||0); return d.getHours() >= 3 && d.getHours() < 5; }).map(a => new Date(a.ts||0).getDay());
     const batmanCondition = hours.some(h => h >= 3 && h < 5) && batHours.some(d => d >= 1 && d <= 4);
 
