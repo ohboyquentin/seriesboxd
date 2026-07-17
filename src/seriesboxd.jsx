@@ -3195,17 +3195,25 @@ export default function SeriesBoxd() {
     // Profil complet
     const profileFilled = !!(user.bio && user.location && user.avatar);
 
-    // ─── Données temporelles supplémentaires ────────────────────────────────
-    const epsByDay = {};
-    Object.entries(watchedEpisodes).forEach(([sid, eps]) => {
-      Object.entries(eps || {}).forEach(([key, watched]) => {
-        if (!watched) return;
-        const entry = activityLog.find(a => a.label?.includes(sid) || a.label?.includes(key));
-        const date = entry ? new Date(entry.ts).toDateString() : new Date().toDateString();
-        epsByDay[date] = (epsByDay[date] || 0) + 1;
-      });
+    // ─── Données temporelles supplémentaires (basées sur les vrais timestamps d'activityLog) ────
+    const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
+    let count48 = 0;
+    let count24 = 0;
+    for (let i = 0; i < sortedEpActs.length; i++) {
+      const start = new Date(sortedEpActs[i].ts||0).getTime();
+      const inWindow48 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 172800000; }).length;
+      const inWindow24 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 86400000; }).length;
+      count48 = Math.max(count48, inWindow48);
+      count24 = Math.max(count24, inWindow24);
+    }
+    // Épisodes regroupés par jour calendaire réel (timestamp direct, plus d'estimation/devinette)
+    const epsByCalendarDay = {};
+    sortedEpActs.forEach(a => {
+      const date = new Date(a.ts || 0).toDateString();
+      epsByCalendarDay[date] = (epsByCalendarDay[date] || 0) + 1;
     });
-    const maxEpsInDay = Math.max(0, ...Object.values(epsByDay));
+    const call911Condition = count48 >= 50;
+    const sprinteur = count24 >= 10; // 10 épisodes vus en moins de 24h glissantes
 
     const epsByWeekday = {};
     activityLog.filter(a => a.type === "episode").forEach(a => {
@@ -3230,9 +3238,6 @@ export default function SeriesBoxd() {
       curNightStreak = diff === 1 ? curNightStreak + 1 : 1;
       maxNightStreak = Math.max(maxNightStreak, curNightStreak);
     }
-    const maxSessionEps = maxEpsInDay;
-    const maxSessionMinutes = maxEpsInDay * 42; // ~42min/épisode, même estimation que dans computeStats
-
     const seasonsSeen = new Set();
     activityLog.forEach(a => {
       const m = new Date(a.ts||0).getMonth();
@@ -3252,7 +3257,7 @@ export default function SeriesBoxd() {
       return a.type === "episode" && m >= 5 && m <= 7;
     }).length;
 
-    const hibernationDone = Object.entries(epsByDay).some(([dateStr, count]) => {
+    const hibernationDone = Object.entries(epsByCalendarDay).some(([dateStr, count]) => {
       const m = new Date(dateStr).getMonth();
       return (m === 11 || m === 0 || m === 1) && count >= 8;
     });
@@ -3290,20 +3295,8 @@ export default function SeriesBoxd() {
     });
     const weekend =        weekendTotal >= 15;
     const insomniaque =    maxNightStreak >= 7;
-    const session_canap =  maxSessionMinutes >= 300; // 5h cumulées dans une même journée
+    const session_canap =  (count24 * 42) >= 300; // ~42min/épisode, 5h cumulées sur une fenêtre glissante de 24h
 
-    const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
-    let count48 = 0;
-    let count24 = 0;
-    for (let i = 0; i < sortedEpActs.length; i++) {
-      const start = new Date(sortedEpActs[i].ts||0).getTime();
-      const inWindow48 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 172800000; }).length;
-      const inWindow24 = sortedEpActs.filter(a => { const t = new Date(a.ts||0).getTime(); return t >= start && t <= start + 86400000; }).length;
-      count48 = Math.max(count48, inWindow48);
-      count24 = Math.max(count24, inWindow24);
-    }
-    const call911Condition = count48 >= 50;
-    const sprinteur = count24 >= 10; // 10 épisodes vus en moins de 24h glissantes
     const survivantCondition = completedSeries.filter(s => s.rawStatus === "Canceled").length >= 10;
     const batHours = activityLog.filter(a => { const d = new Date(a.ts||0); return d.getHours() >= 3 && d.getHours() < 5; }).map(a => new Date(a.ts||0).getDay());
     const batmanCondition = hours.some(h => h >= 3 && h < 5) && batHours.some(d => d >= 1 && d <= 4);
@@ -3437,7 +3430,7 @@ export default function SeriesBoxd() {
         encore_reveillé:  hours.some(h => h >= 4 && h < 5),
         boucle_inf:       Object.values(rewatchCounts).some(r => r.count >= 3),
         amour_eternel:    false, // nécessite notes par saison
-        couch_potato:     maxEpsInDay >= 20,
+        couch_potato:     count24 >= 20,
         call_911:         call911Condition,
         batman:           batmanCondition,
         indecis:          keepWatchingInProgress.length >= 20,
