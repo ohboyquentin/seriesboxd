@@ -1241,11 +1241,18 @@ function SearchPage({ onOpen, onViewProfile, currentUserId }) {
     <div style={{ padding: "0 20px" }}>
       <div style={{ position: "relative", marginBottom: 12 }}>
         <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#555", fontSize: 16 }}>🔍</span>
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Chercher une série ou un ami..." style={{ width: "100%", padding: "13px 52px 13px 42px", background: "#111", border: `1px solid ${showFilters ? ORANGE_BORDER : "#1e1e1e"}`, borderRadius: 12, color: "#fff", fontSize: 14, outline: "none" }} />
-        <button onClick={() => setShowFilters(!showFilters)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: activeCount > 0 ? ORANGE_DIM : "transparent", border: `1px solid ${activeCount > 0 ? ORANGE_BORDER : "#2a2a2a"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: activeCount > 0 ? ORANGE : "#555", fontSize: 13, display: "flex", alignItems: "center", gap: 5 }}>
-          <span>⚙</span>
-          {activeCount > 0 && <span style={{ background: ORANGE, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{activeCount}</span>}
-        </button>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Chercher une série ou un ami..." style={{ width: "100%", padding: "13px 88px 13px 42px", background: "#111", border: `1px solid ${showFilters ? ORANGE_BORDER : "#1e1e1e"}`, borderRadius: 12, color: "#fff", fontSize: 14, outline: "none" }} />
+        <div style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: 6 }}>
+          {query.length > 0 && (
+            <button onClick={() => setQuery("")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 16, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              ×
+            </button>
+          )}
+          <button onClick={() => setShowFilters(!showFilters)} style={{ background: activeCount > 0 ? ORANGE_DIM : "transparent", border: `1px solid ${activeCount > 0 ? ORANGE_BORDER : "#2a2a2a"}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", color: activeCount > 0 ? ORANGE : "#555", fontSize: 13, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+            <span>⚙</span>
+            {activeCount > 0 && <span style={{ background: ORANGE, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{activeCount}</span>}
+          </button>
+        </div>
       </div>
 
       {activeCount > 0 && (
