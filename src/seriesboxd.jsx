@@ -1818,6 +1818,7 @@ async function persistData(data, userId) {
     pinnedBadgeIds: data.pinnedBadgeIds,
     unlockedBadgeIds: data.unlockedBadgeIds,
     rewatchCounts: data.rewatchCounts,
+    posterClicks: data.posterClicks,
   };
   try { saveLocalData(localData, userId); } catch(e) {}
   // Supabase : données complètes
@@ -2111,10 +2112,10 @@ const ALL_BADGES = [
 
   // 📚 Bibliothèque
   { id:"partez",            cat:"Bibliothèque", icon:"🚀", name:"Partez !",            desc:"Ajouter la première série à la Library",          color:"#6b8fa3" },
-  { id:"collectionneur",    cat:"Bibliothèque", icon:"📦", name:"Collectionneur",      desc:"10 séries dans la library",                       color:"#6b8fa3" },
-  { id:"bibliothecaire",    cat:"Bibliothèque", icon:"📚", name:"Bibliothécaire",      desc:"50 séries dans la library",                       color:"#6b8fa3" },
-  { id:"archiviste",        cat:"Bibliothèque", icon:"📎", name:"Archiviste",           desc:"100 séries dans la library",                      color:"#8fa36b" },
-  { id:"conservateur",      cat:"Bibliothèque", icon:"🧠", name:"Conservateur",        desc:"200 séries dans la library",                      color:"#c2a84b" },
+  { id:"collectionneur",    cat:"Bibliothèque", icon:"📦", name:"Collectionneur",      desc:"10 séries terminées dans TV Shows",               color:"#6b8fa3" },
+  { id:"bibliothecaire",    cat:"Bibliothèque", icon:"📚", name:"Bibliothécaire",      desc:"50 séries terminées dans TV Shows",               color:"#6b8fa3" },
+  { id:"archiviste",        cat:"Bibliothèque", icon:"📎", name:"Archiviste",           desc:"100 séries terminées dans TV Shows",              color:"#8fa36b" },
+  { id:"conservateur",      cat:"Bibliothèque", icon:"🧠", name:"Conservateur",        desc:"200 séries terminées dans TV Shows",              color:"#c2a84b" },
   { id:"watchlist_nais",    cat:"Bibliothèque", icon:"🔖", name:"Watchlist naissante", desc:"10 séries en watchlist",                          color:"#6b7aa3" },
   { id:"liste_100",         cat:"Bibliothèque", icon:"💯", name:"Liste 100 fins",      desc:"100 séries en watchlist",                         color:"#6b7aa3" },
   { id:"collection_sec",    cat:"Bibliothèque", icon:"🔐", name:"Collection secrète",  desc:"10 listes personnalisées créées",                 color:"#8a6ba3" },
@@ -2183,7 +2184,7 @@ const ALL_BADGES = [
   { id:"i_did_it",       cat:"Secrets", icon:"?", name:"I did it!",          desc:"Terminer une série notée 1 étoile ou moins",                       color:"#6ba38a", secret:true },
   { id:"guilty_pleasure",cat:"Secrets", icon:"?", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 1 étoile", color:"#a36b8a", secret:true },
   { id:"le_fidele",      cat:"Secrets", icon:"?", name:"Le fidèle",          desc:"Plus de 50% du temps de visionnage sur une seule série",           color:"#c2a84b", secret:true },
-  { id:"le_puriste",     cat:"Secrets", icon:"?", name:"Le Puriste",         desc:"Terminer 20 séries sans jamais en abandonner une",                 color:"#a38a6b", secret:true },
+  { id:"le_puriste",     cat:"Secrets", icon:"?", name:"Le Puriste",         desc:"Terminer 20 séries",                                                color:"#a38a6b", secret:true },
 ];
 
 const BADGE_CATEGORIES = ["Tous", "Visionnage", "Notation", "Critiques", "Genres", "Bibliothèque", "Complétion", "Social", "Spéciaux", "Secrets"];
@@ -3099,6 +3100,7 @@ export default function SeriesBoxd() {
   const [confirm, setConfirm] = useState(null);
   const [epPopup, setEpPopup] = useState(null); // { ep, seasonN, tmdbId }
   const [rewatchCounts, setRewatchCounts] = useState({}); // { message, onConfirm }
+  const [posterClicks, setPosterClicks] = useState({}); // { tmdbId: nombre de clics cumulés sur ce poster }
   const askConfirm = (message, onConfirm, opts = {}) => setConfirm({ message, onConfirm, ...opts });
 
   const [pinnedBadgeIds, setPinnedBadgeIds] = useState([]);
@@ -3261,7 +3263,7 @@ export default function SeriesBoxd() {
     const totalEpsAll = Object.values(watchedEpisodes).reduce((a, eps) => a + Object.values(eps||{}).filter(Boolean).length, 0);
     const maxSingleSeriesEps = Math.max(0, ...Object.values(watchedEpisodes).map(eps => Object.values(eps||{}).filter(Boolean).length));
     const leFideleCondition = totalEpsAll > 0 && (maxSingleSeriesEps / totalEpsAll) >= 0.5;
-    const lePuristeCondition = completedSeries.length >= 20 && abandonCount === 0;
+    const lePuristeCondition = completedSeries.length >= 20;
 
     // Séries "en cours" = mêmes critères que la section Keep watching (au moins 1 épisode coché, pas encore marquée "vue")
     const startedSeries = library.filter(s => {
@@ -3431,14 +3433,14 @@ export default function SeriesBoxd() {
         summer:           summerEps >= 100,
 
         // Secrets
-        oeuf_paques:      false, // nécessite compteur de clics sur posters
+        oeuf_paques:      Object.values(posterClicks).some(c => c >= 100),
         encore_reveillé:  hours.some(h => h >= 4 && h < 5),
         boucle_inf:       Object.values(rewatchCounts).some(r => r.count >= 3),
         amour_eternel:    false, // nécessite notes par saison
         couch_potato:     maxEpsInDay >= 20,
         call_911:         call911Condition,
         batman:           batmanCondition,
-        indecis:          library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 20,
+        indecis:          keepWatchingInProgress.length >= 20,
         i_did_it:         completedSeries.some(s => (s.rating || 0) <= 1 && (s.rating || 0) > 0),
         guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) > 0 && (s.rating || 0) < 1),
         le_fidele:        leFideleCondition,
@@ -3459,7 +3461,7 @@ export default function SeriesBoxd() {
     }
     prevUnlockedRef.current = newIds;
     setUnlockedBadgeIds(newIds);
-  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount]);
+  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount, posterClicks]);
 
   // ── Auth + chargement initial ────────────────────────────────────────────
   const loadAllDataFor = async (uid) => {
@@ -3497,6 +3499,7 @@ export default function SeriesBoxd() {
     setUnlockedBadgeIds(saved.unlockedBadgeIds || ["premiers_pas","bienvenue","fidele","premier_mot","enchante"]);
     setPinnedBadgeIds(saved.pinnedBadgeIds || []);
     setRewatchCounts(saved.rewatchCounts || {});
+    setPosterClicks(saved.posterClicks || {});
     prevUnlockedRef.current = null; // évite un faux toast de badges au changement de compte
     if (uid) {
       try {
@@ -3539,8 +3542,8 @@ export default function SeriesBoxd() {
   // ── Sauvegarde automatique dans localStorage ───────────────────────────────
   useEffect(() => {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
-    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts }, authUser?.id);
-  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, dataLoaded]);
+    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks }, authUser?.id);
+  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, dataLoaded]);
 
   useEffect(() => {
     if (!authUser?.id || followingIds.length === 0) { setFriendsActivity([]); return; }
@@ -3640,6 +3643,7 @@ export default function SeriesBoxd() {
   const openSeries = useCallback(s => {
     const existing = library.find(l => l.tmdbId === s.tmdbId);
     setDetailSeries(existing || s);
+    setPosterClicks(prev => ({ ...prev, [s.tmdbId]: (prev[s.tmdbId] || 0) + 1 }));
   }, [library]);
   const handleAddReview = (sid, review) => {
     const cur = extraReviews[sid] || [];
