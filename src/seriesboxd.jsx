@@ -2173,18 +2173,18 @@ const ALL_BADGES = [
   { id:"summer",            cat:"Spéciaux",    icon:"☀️",  name:"Summer Binge",         desc:"100 épisodes vus pendant l'été",                  color:"#c2a84b" },
 
   // 🔒 Secrets
-  { id:"oeuf_paques",    cat:"Secrets", icon:"?", name:"Œuf de Pâques",      desc:"Cliquer 100 fois sur le même poster",                              color:"#7a8a6b", secret:true },
-  { id:"encore_reveillé",cat:"Secrets", icon:"?", name:"Encore reveillé ?",  desc:"Regarder un épisode entre 4h et 5h du matin",                      color:"#5b6fa3", secret:true },
-  { id:"boucle_inf",     cat:"Secrets", icon:"?", name:"Boucle infinie",     desc:"Revoir trois fois la même série",                                  color:"#8a6ba3", secret:true },
-  { id:"amour_eternel",  cat:"Secrets", icon:"?", name:"Amour éternel",      desc:"Mettre 5 étoiles à toutes les saisons d'une série",                color:"#a36b8a", secret:true },
-  { id:"couch_potato",   cat:"Secrets", icon:"?", name:"Couch Potato",       desc:"Regarder 20 épisodes en une seule journée",                        color:"#8fa36b", secret:true },
-  { id:"call_911",       cat:"Secrets", icon:"?", name:"Call 911",           desc:"Regarder 50 épisodes en 48h",                                      color:"#a36b6b", secret:true },
-  { id:"batman",         cat:"Secrets", icon:"?", name:"Batman",             desc:"Regarder un épisode entre 3h00 et 5h00 du matin (lun-jeu)",        color:"#5b6fa3", secret:true },
-  { id:"indecis",        cat:"Secrets", icon:"?", name:"Indécis",            desc:"Commencer 20 séries sans en terminer aucune",                      color:"#a38a6b", secret:true },
-  { id:"i_did_it",       cat:"Secrets", icon:"?", name:"I did it!",          desc:"Terminer une série notée 1 étoile ou moins",                       color:"#6ba38a", secret:true },
-  { id:"guilty_pleasure",cat:"Secrets", icon:"?", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 1 étoile", color:"#a36b8a", secret:true },
-  { id:"le_fidele",      cat:"Secrets", icon:"?", name:"Le fidèle",          desc:"Plus de 50% du temps de visionnage sur une seule série",           color:"#c2a84b", secret:true },
-  { id:"le_puriste",     cat:"Secrets", icon:"?", name:"Le Puriste",         desc:"Terminer 20 séries",                                                color:"#a38a6b", secret:true },
+  { id:"oeuf_paques",    cat:"Secrets", icon:"🥚", name:"Œuf de Pâques",      desc:"Cliquer 100 fois sur le même poster",                              color:"#7a8a6b", secret:true },
+  { id:"encore_reveillé",cat:"Secrets", icon:"🧟", name:"Encore reveillé ?",  desc:"Regarder un épisode entre 4h et 5h du matin",                      color:"#5b6fa3", secret:true },
+  { id:"boucle_inf",     cat:"Secrets", icon:"♾️", name:"Boucle infinie",     desc:"Revoir trois fois la même série",                                  color:"#8a6ba3", secret:true },
+  { id:"amour_eternel",  cat:"Secrets", icon:"💍", name:"Amour éternel",      desc:"Mettre 5 étoiles à toutes les saisons d'une série",                color:"#a36b8a", secret:true },
+  { id:"couch_potato",   cat:"Secrets", icon:"🥔", name:"Couch Potato",       desc:"Regarder 20 épisodes en une seule journée",                        color:"#8fa36b", secret:true },
+  { id:"call_911",       cat:"Secrets", icon:"🚑", name:"Call 911",           desc:"Regarder 50 épisodes en 48h",                                      color:"#a36b6b", secret:true },
+  { id:"batman",         cat:"Secrets", icon:"🦸", name:"Batman",             desc:"Regarder un épisode entre 3h00 et 5h00 du matin (lun-jeu)",        color:"#5b6fa3", secret:true },
+  { id:"indecis",        cat:"Secrets", icon:"🤷", name:"Indécis",            desc:"Commencer 20 séries sans en terminer aucune",                      color:"#a38a6b", secret:true },
+  { id:"i_did_it",       cat:"Secrets", icon:"🙌", name:"I did it!",          desc:"Terminer une série notée 1 étoile ou moins",                       color:"#6ba38a", secret:true },
+  { id:"guilty_pleasure",cat:"Secrets", icon:"🙈", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 1 étoile", color:"#a36b8a", secret:true },
+  { id:"le_fidele",      cat:"Secrets", icon:"🧲", name:"Le fidèle",          desc:"Plus de 50% du temps de visionnage sur une seule série",           color:"#c2a84b", secret:true },
+  { id:"le_puriste",     cat:"Secrets", icon:"🕊️", name:"Le Puriste",         desc:"Terminer 20 séries",                                                color:"#a38a6b", secret:true },
 ];
 
 const BADGE_CATEGORIES = ["Tous", "Visionnage", "Notation", "Critiques", "Genres", "Bibliothèque", "Complétion", "Social", "Spéciaux", "Secrets"];
