@@ -715,7 +715,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           if (onActivity) onActivity("episode", `Tu as fini la saison ${seasonN} de ${series.title}`);
         } else if (next[key]) {
           const ep = season.episodes.find(e => e.ep === epN);
-          if (onActivity && ep) onActivity("episode", `Tu as vu ${series.title} S${seasonN}E${epN} – ${ep.title}`);
+          if (onActivity && ep) onActivity("episode", `Tu as vu ${series.title} S${seasonN}E${epN} – ${ep.title}`, { airDate: ep.air_date || null, durationMin: ep.durationMin || null });
         }
       }
       return next;
@@ -769,6 +769,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           episodes: (sd.episodes || []).map(ep => ({
             ep: ep.episode_number, title: ep.name,
             duration: ep.runtime ? `${ep.runtime} min` : "—",
+            durationMin: ep.runtime || null,
             watched: false,
             still: ep.still_path ? `${IMG}/w300${ep.still_path}` : null,
             overview: ep.overview,
@@ -1819,6 +1820,7 @@ async function persistData(data, userId) {
     unlockedBadgeIds: data.unlockedBadgeIds,
     rewatchCounts: data.rewatchCounts,
     posterClicks: data.posterClicks,
+    watchlistPeak: data.watchlistPeak,
   };
   try { saveLocalData(localData, userId); } catch(e) {}
   // Supabase : données complètes
@@ -2062,6 +2064,13 @@ const ALL_BADGES = [
   { id:"weekend",           cat:"Visionnage", icon:"🏠",  name:"Week-end Marathon",    desc:"Regarder au moins 15 épisodes entre vendredi et dimanche",     color:"#8fa36b" },
   { id:"insomniaque",       cat:"Visionnage", icon:"😴",  name:"Insomniaque",          desc:"Regarder des épisodes 7 nuits consécutives",                   color:"#5b6fa3" },
   { id:"session_canap",     cat:"Visionnage", icon:"⏰",  name:"Session canapé",       desc:"Regarder des épisodes pendant 5 heures cumulées dans une journée",              color:"#6b8fa3" },
+  { id:"jour_j",            cat:"Visionnage", icon:"📆",  name:"Jour J",               desc:"Regarder un épisode le jour même de sa sortie",   color:"#6b8fa3" },
+  { id:"retour_futur",      cat:"Visionnage", icon:"⏳",  name:"Retour vers le futur", desc:"Regarder une série sortie il y a plus de 30 ans", color:"#8fa36b" },
+  { id:"multi_decennies",   cat:"Visionnage", icon:"🕰️",  name:"Multi-décennies",      desc:"Voir des séries réparties sur au moins 5 décennies différentes", color:"#c2a84b" },
+  { id:"format_court",      cat:"Visionnage", icon:"⏩",  name:"Format court",         desc:"Terminer une mini-série de moins de 10 épisodes", color:"#6ba38a" },
+  { id:"feuilleton",        cat:"Visionnage", icon:"🧵",  name:"Feuilleton",           desc:"Terminer une série de plus de 300 épisodes",      color:"#5b6fa3" },
+  { id:"cycle_complet",     cat:"Visionnage", icon:"🔃",  name:"Cycle complet",        desc:"Avoir de l'activité la nuit, le matin, l'après-midi et le soir", color:"#6ba38a" },
+  { id:"format_xxl",        cat:"Visionnage", icon:"🎦",  name:"Format XXL",           desc:"Regarder un épisode spécial de plus de 90 minutes", color:"#a36b6b" },
 
   // ⭐ Notation
   { id:"premiere_opinion",  cat:"Notation",   icon:"⭐",  name:"Première opinion",     desc:"1 note donnée",                                   color:"#c2a84b" },
@@ -2087,6 +2096,7 @@ const ALL_BADGES = [
   { id:"roman",             cat:"Critiques",  icon:"📖",  name:"Roman",                desc:"Publier une critique de plus de 1000 caractères", color:"#6b7aa3" },
   { id:"concis",            cat:"Critiques",  icon:"💬",  name:"Concis mais efficace", desc:"20 likes sur une critique de moins de 100 chars", color:"#6b8fa3" },
   { id:"spoiler",           cat:"Critiques",  icon:"⛔",  name:"Spoiler",              desc:"Commenter un épisode dans l'heure de sa sortie",  color:"#a38a6b" },
+  { id:"critique_assidu",   cat:"Critiques",  icon:"🖋️",  name:"Critique assidu",      desc:"Avoir écrit une critique pour chaque série terminée (min. 5)", color:"#6ba38a" },
 
   // 🎭 Genres
   { id:"curieux",           cat:"Genres",     icon:"🔍",  name:"Curieux",              desc:"5 genres différents regardés",                    color:"#8a6ba3" },
@@ -2109,6 +2119,8 @@ const ALL_BADGES = [
   { id:"historien",         cat:"Genres",     icon:"📜",  name:"Historien",            desc:"10 séries Historiques terminées",                 color:"#a38a6b" },
   { id:"aventurier",        cat:"Genres",     icon:"✈️",  name:"l'Aventurier",         desc:"Séries de 10 pays différents",                    color:"#6ba38a" },
   { id:"globe_trotter",     cat:"Genres",     icon:"🌐",  name:"Globe-trotter",        desc:"Regarder une série provenant de 20 pays différents",color:"#6ba38a" },
+  { id:"local",             cat:"Genres",     icon:"📍",  name:"Local",                desc:"N'avoir regardé que des séries d'un seul pays (minimum 5 séries)", color:"#6ba38a" },
+  { id:"monogenre",         cat:"Genres",     icon:"🎯",  name:"Monogenre",            desc:"80% de tes séries vues appartiennent au même genre (minimum 5 séries)", color:"#8a6ba3" },
 
   // 📚 Bibliothèque
   { id:"partez",            cat:"Bibliothèque", icon:"🚀", name:"Partez !",            desc:"Ajouter la première série à la Library",          color:"#6b8fa3" },
@@ -2121,9 +2133,15 @@ const ALL_BADGES = [
   { id:"collection_sec",    cat:"Bibliothèque", icon:"🔐", name:"Collection secrète",  desc:"10 listes personnalisées créées",                 color:"#8a6ba3" },
   { id:"curateur",          cat:"Bibliothèque", icon:"🎨", name:"Curateur",            desc:"Une liste ayant reçu 25 likes",                   color:"#a36b8a" },
   { id:"organise",          cat:"Bibliothèque", icon:"📋", name:"Organisé",            desc:"Toutes les séries de sa watchlist dans des listes", color:"#6ba38a" },
+  { id:"etiqueteur",        cat:"Bibliothèque", icon:"🏷️", name:"Étiqueteur",          desc:"Créer 10 tags différents",                        color:"#8a6ba3" },
+  { id:"taxonomiste",       cat:"Bibliothèque", icon:"🗂️", name:"Taxonomiste",         desc:"Tagger 25 séries différentes",                    color:"#6b7aa3" },
+  { id:"nettoyeur_watchlist", cat:"Bibliothèque", icon:"🧹", name:"Nettoyeur de watchlist", desc:"Vider complètement sa watchlist après y avoir eu au moins 10 séries", color:"#6ba38a" },
 
   // ✅ Complétion
   { id:"bienvenue",         cat:"Complétion",  icon:"👋",  name:"Bienvenue",            desc:"Compléter son profil",                            color:"#6ba38a" },
+  { id:"profil_dore",       cat:"Complétion",  icon:"🏵️",  name:"Profil doré",          desc:"Remplir absolument tous les champs de son profil", color:"#c2a84b" },
+  { id:"vitrine_complete",  cat:"Complétion",  icon:"🖼️",  name:"Vitrine complète",     desc:"Épingler 4 badges sur son profil",                color:"#6b8fa3" },
+  { id:"fierte_secrete",    cat:"Complétion",  icon:"🃏",  name:"Fierté secrète",       desc:"Épingler un badge secret sur son profil",         color:"#8a6ba3" },
   { id:"jusqu_bout",        cat:"Complétion",  icon:"✔️",  name:"Jusqu'au bout",        desc:"1 série terminée entièrement",                    color:"#6ba38a" },
   { id:"finisseur",         cat:"Complétion",  icon:"🏁",  name:"Finisseur",            desc:"Terminer 10 séries différentes",                  color:"#6ba38a" },
   { id:"sans_repit",        cat:"Complétion",  icon:"🏴",  name:"Sans répit",           desc:"Terminer 25 séries différentes",                  color:"#8fa36b" },
@@ -2145,6 +2163,9 @@ const ALL_BADGES = [
   { id:"premier_echange",   cat:"Social",      icon:"💬",  name:"Premier échange",      desc:"Commenter une critique",                          color:"#6b7aa3" },
   { id:"debatteur",         cat:"Social",      icon:"⚡",  name:"Débatteur",            desc:"Commenter 50 critiques",                          color:"#6b7aa3" },
   { id:"prem_interaction",  cat:"Social",      icon:"💚",  name:"Première interaction", desc:"Liker une critique",                              color:"#a36b8a" },
+  { id:"ame_soeur",         cat:"Social",      icon:"🫂",  name:"Âme sœur",             desc:"Atteindre 90% de compatibilité avec un ami",      color:"#a36b8a" },
+  { id:"opposes",           cat:"Social",      icon:"🧊",  name:"Opposés",              desc:"Avoir un ami avec moins de 10% de compatibilité", color:"#6b7aa3" },
+  { id:"jumeaux_series",    cat:"Social",      icon:"👯",  name:"Jumeaux de séries",    desc:"Avoir les mêmes séries favorites qu'un ami",      color:"#6b8fa3" },
 
   // 🎯 Spéciaux
   { id:"noctambule",        cat:"Spéciaux",    icon:"🦇",  name:"Noctambule",           desc:"Activité entre minuit et 5h",                     color:"#5b6fa3" },
@@ -2160,6 +2181,7 @@ const ALL_BADGES = [
   { id:"parieur",           cat:"Spéciaux",    icon:"🎲",  name:"Parieur",              desc:"Suivre une série avec < 100 utilisateurs",        color:"#8a6ba3" },
   { id:"testeur",           cat:"Spéciaux",    icon:"🧪",  name:"Testeur pilote",       desc:"Regarder le 1er épisode de 20 séries différentes",  color:"#6b7aa3" },
   { id:"nostalgique",       cat:"Spéciaux",    icon:"🔁",  name:"Nostalgique",          desc:"Revoir 5 séries déjà terminées",                    color:"#6ba38a" },
+  { id:"habitue_reruns",    cat:"Spéciaux",    icon:"🔂",  name:"Habitué des reruns",   desc:"Cumuler 10 rewatchs, toutes séries confondues",     color:"#8a6ba3" },
   { id:"mauvaise_dec",      cat:"Spéciaux",    icon:"🤦",  name:"Mauvaise décision",    desc:"Commencer 50 séries sans en finir une",           color:"#a38a6b" },
   { id:"abandon",           cat:"Spéciaux",    icon:"🚪",  name:"Abandon rapide",       desc:"Arrêter une série après un seul épisode",         color:"#a36b6b" },
   { id:"rewatch",           cat:"Spéciaux",    icon:"🔄",  name:"Rewatch Master",       desc:"Revoir entièrement une série déjà terminée",      color:"#8a6ba3" },
@@ -2171,6 +2193,9 @@ const ALL_BADGES = [
   { id:"halloween",         cat:"Spéciaux",    icon:"🎃",  name:"Halloween",            desc:"Regarder un épisode ou une série le 31 octobre",  color:"#a36b6b" },
   { id:"st_valentin",       cat:"Spéciaux",    icon:"💝",  name:"Saint-Valentin",       desc:"Regarder une romance le 14 février",              color:"#a36b8a" },
   { id:"summer",            cat:"Spéciaux",    icon:"☀️",  name:"Summer Binge",         desc:"100 épisodes vus pendant l'été",                  color:"#c2a84b" },
+  { id:"nouvel_an",         cat:"Spéciaux",    icon:"🎆",  name:"Nouvel an",            desc:"Regarder un épisode le 1er janvier",              color:"#c2a84b" },
+  { id:"vendredi_13",       cat:"Spéciaux",    icon:"🪓",  name:"Vendredi 13",          desc:"Regarder une série d'horreur un vendredi 13",     color:"#a36b6b" },
+  { id:"marathon_noel",     cat:"Spéciaux",    icon:"🎅",  name:"Marathon de Noël",     desc:"Voir 3 épisodes ou plus le 25 décembre",          color:"#a36b6b" },
 
   // 🔒 Secrets
   { id:"oeuf_paques",    cat:"Secrets", icon:"🥚", name:"Œuf de Pâques",      desc:"Cliquer 100 fois sur le même poster",                              color:"#7a8a6b", secret:true },
@@ -2185,6 +2210,9 @@ const ALL_BADGES = [
   { id:"guilty_pleasure",cat:"Secrets", icon:"🙈", name:"Guilty Pleasure",    desc:"5 étoiles à une série dont la note communautaire est < 1 étoile", color:"#a36b8a", secret:true },
   { id:"le_fidele",      cat:"Secrets", icon:"🧲", name:"Le fidèle",          desc:"Plus de 50% du temps de visionnage sur une seule série",           color:"#c2a84b", secret:true },
   { id:"le_puriste",     cat:"Secrets", icon:"🕊️", name:"Le Puriste",         desc:"Terminer 20 séries",                                                color:"#a38a6b", secret:true },
+  { id:"perfectionniste",cat:"Secrets", icon:"✨", name:"Perfectionniste",    desc:"Avoir mis 5★ à toutes tes séries terminées (min. 10)",             color:"#c2a84b", secret:true },
+  { id:"anti_fan",       cat:"Secrets", icon:"🖤", name:"Anti-fan",           desc:"Avoir mis 1★ à toutes tes séries terminées (min. 10)",             color:"#a36b6b", secret:true },
+  { id:"retour_baton",   cat:"Secrets", icon:"🔙", name:"Retour de bâton",    desc:"Revenir sur l'app après 60 jours d'inactivité",                    color:"#6b7aa3", secret:true },
 ];
 
 const BADGE_CATEGORIES = ["Tous", "Visionnage", "Notation", "Critiques", "Genres", "Bibliothèque", "Complétion", "Social", "Spéciaux", "Secrets"];
@@ -2677,6 +2705,42 @@ async function fetchUserProfile(userId) {
   };
 }
 
+function computeCompatibility(myWatched, theirWatched) {
+  // 1. Genres en commun (33.3%)
+  const getGenres = (lib) => [...new Set(lib.flatMap(s => s.genres?.length ? s.genres : (s.genre ? [s.genre] : [])))];
+  const myGenres = getGenres(myWatched);
+  const theirGenres = getGenres(theirWatched);
+  const commonGenres = myGenres.filter(g => theirGenres.includes(g));
+  const totalGenres = new Set([...myGenres, ...theirGenres]).size;
+  const genreScore = totalGenres > 0 ? commonGenres.length / totalGenres : 0;
+
+  // 2. Séries en commun (33.3%)
+  const myIds = new Set(myWatched.map(s => s.tmdbId));
+  const theirIds = new Set(theirWatched.map(s => s.tmdbId));
+  const commonSeries = [...myIds].filter(id => theirIds.has(id));
+  const totalSeries = new Set([...myIds, ...theirIds]).size;
+  const seriesScore = totalSeries > 0 ? commonSeries.length / totalSeries : 0;
+
+  // 3. Notes similaires sur séries communes (33.3%)
+  const myRated = myWatched.filter(s => s.userRating);
+  const theirRated = theirWatched.filter(s => s.userRating);
+  const bothRated = myRated.filter(s => theirRated.find(t => t.tmdbId === s.tmdbId));
+  let ratingScore = 0;
+  if (bothRated.length > 0) {
+    const avgDiff = bothRated.reduce((acc, s) => {
+      const theirs = theirRated.find(t => t.tmdbId === s.tmdbId);
+      return acc + Math.abs(s.userRating - theirs.userRating);
+    }, 0) / bothRated.length;
+    ratingScore = Math.max(0, 1 - avgDiff / 5);
+  } else if (commonSeries.length === 0) {
+    ratingScore = 0;
+  } else {
+    ratingScore = 0.5; // séries en commun mais aucune notée des deux côtés
+  }
+
+  return Math.round(((genreScore + seriesScore + ratingScore) / 3) * 100);
+}
+
 function formatRelativeTime(iso) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -2743,45 +2807,9 @@ function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary =
   const favShows = profile.favShows?.length ? profile.favShows : watched.slice(0, 4);
 
   // ── Calcul de compatibilité ────────────────────────────────────────────────
-  const compatibility = currentUserId && currentUserId !== userId ? (() => {
-    const myWatched = (myLibrary || []).filter(s => s.watched);
-    const theirWatched = (profile.library || []).filter(s => s.watched);
-
-    // 1. Genres en commun (33.3%)
-    const getGenres = (lib) => [...new Set(lib.flatMap(s => s.genres?.length ? s.genres : (s.genre ? [s.genre] : [])))];
-    const myGenres = getGenres(myWatched);
-    const theirGenres = getGenres(theirWatched);
-    const commonGenres = myGenres.filter(g => theirGenres.includes(g));
-    const totalGenres = new Set([...myGenres, ...theirGenres]).size;
-    const genreScore = totalGenres > 0 ? commonGenres.length / totalGenres : 0;
-
-    // 2. Séries en commun (33.3%)
-    const myIds = new Set(myWatched.map(s => s.tmdbId));
-    const theirIds = new Set(theirWatched.map(s => s.tmdbId));
-    const commonSeries = [...myIds].filter(id => theirIds.has(id));
-    const totalSeries = new Set([...myIds, ...theirIds]).size;
-    const seriesScore = totalSeries > 0 ? commonSeries.length / totalSeries : 0;
-
-    // 3. Notes similaires sur séries communes (33.3%)
-    const myRated = myWatched.filter(s => s.userRating);
-    const theirRated = theirWatched.filter(s => s.userRating);
-    const bothRated = myRated.filter(s => theirRated.find(t => t.tmdbId === s.tmdbId));
-    let ratingScore = 0;
-    if (bothRated.length > 0) {
-      const avgDiff = bothRated.reduce((acc, s) => {
-        const theirs = theirRated.find(t => t.tmdbId === s.tmdbId);
-        return acc + Math.abs(s.userRating - theirs.userRating);
-      }, 0) / bothRated.length;
-      ratingScore = Math.max(0, 1 - avgDiff / 5);
-    } else if (commonSeries.length === 0) {
-      ratingScore = 0;
-    } else {
-      ratingScore = 0.5; // séries en commun mais aucune notée des deux côtés
-    }
-
-    const total = Math.round(((genreScore + seriesScore + ratingScore) / 3) * 100);
-    return total;
-  })() : null;
+  const compatibility = currentUserId && currentUserId !== userId
+    ? computeCompatibility((myLibrary || []).filter(s => s.watched), (profile.library || []).filter(s => s.watched))
+    : null;
   const ic = (sym, size=18) => <span style={{ color: ORANGE, fontSize: size, lineHeight: 1 }}>{sym}</span>;
   const ICONS = { watch: ic("\u25c9"), rate: ic("\u2605",20), review: ic("\u270e"), like: ic("\u2665"), episode: ic("\u25b6",15), watchlist: ic("\u25c8"), list: ic("\u2261"), rewatch: ic("\u21ba") };
 
@@ -3088,6 +3116,7 @@ export default function SeriesBoxd() {
   const [followingIds, setFollowingIds] = useState([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [friendsActivity, setFriendsActivity] = useState([]);
+  const [friendsLibraries, setFriendsLibraries] = useState([]); // [{ id, watched, favShows }] — pour Âme sœur / Jumeaux de séries
   const [friendsActivityLoading, setFriendsActivityLoading] = useState(false);
   const [showReviewsPage, setShowReviewsPage] = useState(false);
   const [showSettingsPage, setShowSettingsPage] = useState(false);
@@ -3101,6 +3130,7 @@ export default function SeriesBoxd() {
   const [epPopup, setEpPopup] = useState(null); // { ep, seasonN, tmdbId }
   const [rewatchCounts, setRewatchCounts] = useState({}); // { message, onConfirm }
   const [posterClicks, setPosterClicks] = useState({}); // { tmdbId: nombre de clics cumulés sur ce poster }
+  const [watchlistPeak, setWatchlistPeak] = useState(0); // plus grand nombre de séries jamais eues en watchlist en même temps
   const askConfirm = (message, onConfirm, opts = {}) => setConfirm({ message, onConfirm, ...opts });
 
   const [pinnedBadgeIds, setPinnedBadgeIds] = useState([]);
@@ -3131,6 +3161,7 @@ export default function SeriesBoxd() {
     const watchedSeries  = library.filter(s => s.watched);
     const libSize        = library.filter(s => s.watched).length;
     const watchlistSize  = library.filter(s => s.inWatchlist).length;
+    const nettoyeurWatchlistCondition = watchlistPeak >= 10 && watchlistSize === 0;
 
     // Genres uniques des séries vues
     // Helper pour récupérer les genres d'une série — tableau si dispo, sinon genre string comme fallback
@@ -3185,15 +3216,80 @@ export default function SeriesBoxd() {
     const hasNightActivity      = hours.some(h => h >= 0 && h < 5);
     const hasStrictNightActivity = hours.some(h => h >= 0 && h < 4); // 0h-3h59, dédié à "Oiseau de nuit" pour ne pas chevaucher "Lève-tôt"
     const hasEarlyActivity   = hours.some(h => h >= 4 && h <= 6);
+    const hasMorningActivity   = hours.some(h => h >= 5 && h < 12);
+    const hasAfternoonActivity = hours.some(h => h >= 12 && h < 18);
+    const hasEveningActivity   = hours.some(h => h >= 18 && h < 24);
+    const cycleCompletCondition = hasNightActivity && hasMorningActivity && hasAfternoonActivity && hasEveningActivity;
 
     // Pays des séries (via s.origin_country ou s.country)
     const countries = [...new Set(watchedSeries.flatMap(s => s.origin_country || s.countries || []))];
+    const localCondition = watchedSeries.length >= 5 && countries.length === 1;
+    const genreCounts = {};
+    watchedSeries.forEach(s => { getGenres(s).forEach(g => { genreCounts[g] = (genreCounts[g] || 0) + 1; }); });
+    const totalGenreTags = Object.values(genreCounts).reduce((a, b) => a + b, 0);
+    const maxGenreCount = Math.max(0, ...Object.values(genreCounts));
+    const monogenreCondition = watchedSeries.length >= 5 && totalGenreTags > 0 && (maxGenreCount / totalGenreTags) >= 0.8;
+
+    // Décennies des séries vues (basé sur l'année de sortie)
+    const decadesSeen = new Set(watchedSeries.filter(s => s.year && s.year !== "—").map(s => Math.floor(s.year / 10) * 10));
+    const currentYear = new Date().getFullYear();
+    const retourFuturCondition = watchedSeries.some(s => s.year && s.year !== "—" && (currentYear - s.year) > 30);
+
+    // Formats d'épisodes (courts / longs) parmi les séries terminées
+    const formatCourtCondition = completedSeries.some(s => (s.episodes || 0) > 0 && s.episodes < 10);
+    const feuilletonCondition  = completedSeries.some(s => (s.episodes || 0) > 300);
+
+    // Tags
+    const uniqueTagsCount = new Set(Object.values(tags).flat()).size;
+    const taggedSeriesCount = Object.values(tags).filter(arr => (arr || []).length > 0).length;
+
+    // Dates spéciales
+    const jourJCondition = activityLog.some(a => a.type === "episode" && a.airDate && new Date(a.ts||0).toDateString() === new Date(a.airDate).toDateString());
+    const formatXxlCondition = activityLog.some(a => a.type === "episode" && a.durationMin && a.durationMin > 90);
+    const nouvelAnCondition = activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate() === 1 && d.getMonth() === 0; });
+    const marathonNoelCondition = activityLog.filter(a => { const d = new Date(a.ts||0); return a.type === "episode" && d.getDate() === 25 && d.getMonth() === 11; }).length >= 3;
+    const horrorSeriesTitles = watchedSeries.filter(s => getGenres(s).some(g => g.toLowerCase().includes("horreur"))).map(s => s.title);
+    const vendredi13Condition = activityLog.some(a => {
+      if (a.type !== "episode") return false;
+      const d = new Date(a.ts||0);
+      if (d.getDate() !== 13 || d.getDay() !== 5) return false;
+      return horrorSeriesTitles.some(t => a.label?.includes(t));
+    });
+
+    // Perfectionniste / Anti-fan (toutes les séries terminées notées pareil, minimum 10)
+    const perfectionnisteCondition = completedSeries.length >= 10 && completedSeries.every(s => s.userRating === 5);
+    const antiFanCondition = completedSeries.length >= 10 && completedSeries.every(s => s.userRating === 1);
+
+    // Retour après 60 jours d'inactivité totale
+    const sortedAllActs = [...activityLog].sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
+    const retourBatonCondition = sortedAllActs.some((a, i) => {
+      if (i === 0) return false;
+      const gap = (new Date(a.ts||0) - new Date(sortedAllActs[i-1].ts||0)) / 86400000;
+      return gap >= 60;
+    });
+
+    // Compatibilité / favoris communs avec des amis
+    const myWatchedForCompat = watchedSeries;
+    const ameSoeurCondition = friendsLibraries.some(f => computeCompatibility(myWatchedForCompat, f.watched || []) >= 90);
+    const myFavIds = new Set((user.favShows || []).map(s => s.tmdbId));
+    const jumeauxSeriesCondition = myFavIds.size >= 3 && friendsLibraries.some(f => {
+      const theirFavIds = new Set((f.favShows || []).map(s => s.tmdbId));
+      if (theirFavIds.size !== myFavIds.size) return false;
+      return [...myFavIds].every(id => theirFavIds.has(id));
+    });
 
     // Listes
     const listsCount = lists.length;
 
     // Profil complet
     const profileFilled = !!(user.bio && user.location && user.avatar);
+    const profilDoreCondition = !!(user.bio && user.location && user.website && user.avatar && (user.favGenres || []).length > 0 && (user.favShows || []).length > 0);
+    const vitrineCompleteCondition = pinnedBadgeIds.length >= 4;
+    const fierteSecreteCondition = pinnedBadgeIds.some(id => ALL_BADGES.find(b => b.id === id)?.secret);
+    const totalRewatchesCumules = Object.values(rewatchCounts).reduce((a, r) => a + (r.count || 0), 0);
+    const habitueRerunsCondition = totalRewatchesCumules >= 10;
+    const critiqueAssiduCondition = completedSeries.length >= 5 && completedSeries.every(s => (extraReviews[s.tmdbId] || []).length > 0);
+    const opposesCondition = watchedSeries.length >= 5 && friendsLibraries.some(f => (f.watched || []).length >= 5 && computeCompatibility(watchedSeries, f.watched || []) < 10);
 
     // ─── Données temporelles supplémentaires (basées sur les vrais timestamps d'activityLog) ────
     const sortedEpActs = [...activityLog].filter(a => a.type === "episode").sort((a,b) => new Date(a.ts||0) - new Date(b.ts||0));
@@ -3305,6 +3401,13 @@ export default function SeriesBoxd() {
         // Visionnage
         premiers_pas, accro, seriphile, binge_master, marathonien, legende_canape,
         oiseau_nuit, leve_tot, sprinteur, adieu, speedrunner, weekend, insomniaque, session_canap,
+        jour_j:           jourJCondition,
+        format_xxl:       formatXxlCondition,
+        cycle_complet:    cycleCompletCondition,
+        retour_futur:     retourFuturCondition,
+        multi_decennies:  decadesSeen.size >= 5,
+        format_court:     formatCourtCondition,
+        feuilleton:       feuilletonCondition,
 
         // Notation
         premiere_opinion: ratings.length >= 1,
@@ -3337,6 +3440,7 @@ export default function SeriesBoxd() {
             return episodeActs.some(e => Math.abs(rt - new Date(e.ts).getTime()) <= 60 * 60 * 1000);
           });
         })(),
+        critique_assidu:  critiqueAssiduCondition,
 
         // Genres
         curieux:          genresSeen.length >= 5,
@@ -3359,6 +3463,8 @@ export default function SeriesBoxd() {
         historien:        seriesByGenre("historique").length >= 10,
         aventurier:       countries.length >= 10,
         globe_trotter:    countries.length >= 20,
+        local:            localCondition,
+        monogenre:        monogenreCondition,
 
         // Bibliothèque
         partez:           libSize >= 1,
@@ -3371,9 +3477,15 @@ export default function SeriesBoxd() {
         collection_sec:   listsCount >= 10,
         curateur:         lists.some(l => (l.likes || 0) >= 1),
         organise:         watchlistSize >= 5 && listsCount >= 3,
+        nettoyeur_watchlist: nettoyeurWatchlistCondition,
+        etiqueteur:       uniqueTagsCount >= 10,
+        taxonomiste:      taggedSeriesCount >= 25,
 
         // Complétion
         bienvenue:        profileFilled,
+        profil_dore:      profilDoreCondition,
+        vitrine_complete: vitrineCompleteCondition,
+        fierte_secrete:   fierteSecreteCondition,
         jusqu_bout:       completedSeries.length >= 1,
         finisseur:        completedSeries.length >= 10,
         sans_repit:       completedSeries.length >= 25,
@@ -3395,6 +3507,9 @@ export default function SeriesBoxd() {
         premier_echange:  totalCommentsGiven >= 1,
         debatteur:        totalCommentsGiven >= 50,
         prem_interaction: totalLikesGiven >= 1,
+        ame_soeur:        ameSoeurCondition,
+        opposes:          opposesCondition,
+        jumeaux_series:   jumeauxSeriesCondition,
 
         // Spéciaux
         noctambule:       hasNightActivity,
@@ -3410,6 +3525,7 @@ export default function SeriesBoxd() {
         parieur:          library.some(s => (s.voteCount || s.popularity || 9999) < 100),
         testeur:          pilotOnly.length >= 20,
         nostalgique:      nostalgicCount >= 5,
+        habitue_reruns:   habitueRerunsCondition,
         mauvaise_dec:     library.filter(s => !completedSeries.find(c=>c.tmdbId===s.tmdbId)).length >= 50,
         abandon:          abandonCount >= 1,
         rewatch:          Object.values(rewatchCounts).some(r => r.count >= 1),
@@ -3424,6 +3540,9 @@ export default function SeriesBoxd() {
         }),
         st_valentin:      activityLog.some(a => { const d = new Date(a.ts||0); return d.getDate()===14 && d.getMonth()===1; }),
         summer:           summerEps >= 100,
+        nouvel_an:        nouvelAnCondition,
+        vendredi_13:      vendredi13Condition,
+        marathon_noel:    marathonNoelCondition,
 
         // Secrets
         oeuf_paques:      Object.values(posterClicks).some(c => c >= 100),
@@ -3438,6 +3557,9 @@ export default function SeriesBoxd() {
         guilty_pleasure:  watchedSeries.some(s => s.userRating === 5 && (s.rating || 0) > 0 && (s.rating || 0) < 1),
         le_fidele:        leFideleCondition,
         le_puriste:       lePuristeCondition,
+        perfectionniste:  perfectionnisteCondition,
+        anti_fan:         antiFanCondition,
+        retour_baton:     retourBatonCondition,
       };
 
     const newIds = Object.entries(rules).filter(([,v]) => v).map(([k]) => k);
@@ -3454,7 +3576,7 @@ export default function SeriesBoxd() {
     }
     prevUnlockedRef.current = newIds;
     setUnlockedBadgeIds(newIds);
-  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount, posterClicks]);
+  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount, posterClicks, tags, friendsLibraries, pinnedBadgeIds, rewatchCounts, watchlistPeak]);
 
   // ── Auth + chargement initial ────────────────────────────────────────────
   const loadAllDataFor = async (uid) => {
@@ -3493,6 +3615,7 @@ export default function SeriesBoxd() {
     setPinnedBadgeIds(saved.pinnedBadgeIds || []);
     setRewatchCounts(saved.rewatchCounts || {});
     setPosterClicks(saved.posterClicks || {});
+    setWatchlistPeak(saved.watchlistPeak || 0);
     prevUnlockedRef.current = null; // évite un faux toast de badges au changement de compte
     if (uid) {
       try {
@@ -3532,24 +3655,33 @@ export default function SeriesBoxd() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Suivi du pic historique de la watchlist (pour le badge Nettoyeur de watchlist) ──
+  useEffect(() => {
+    if (!dataLoaded) return;
+    const currentWatchlistSize = library.filter(s => s.inWatchlist).length;
+    if (currentWatchlistSize > watchlistPeak) setWatchlistPeak(currentWatchlistSize);
+  }, [library, dataLoaded]);
+
   // ── Sauvegarde automatique dans localStorage ───────────────────────────────
   useEffect(() => {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
-    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks }, authUser?.id);
-  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, dataLoaded]);
+    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUser?.id);
+  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded]);
 
   useEffect(() => {
-    if (!authUser?.id || followingIds.length === 0) { setFriendsActivity([]); return; }
+    if (!authUser?.id || followingIds.length === 0) { setFriendsActivity([]); setFriendsLibraries([]); return; }
     setFriendsActivityLoading(true);
     (async () => {
       try {
         const { data: profiles } = await supabase.from("profiles").select("id, data").in("id", followingIds);
         const acts = [];
+        const libs = [];
         (profiles || []).forEach(p => {
           const u      = p.data?.user || {};
           const name   = u.name || "Utilisateur";
           const avatar = u.avatar || null;
           const lib    = p.data?.library || [];
+          libs.push({ id: p.id, watched: lib.filter(s => s.watched), favShows: u.favShows || p.data?.favShows || [] });
           (p.data?.activityLog || []).slice(0, 15).forEach(a => {
             const series = lib.find(s => s.title && a.label?.includes(s.title)) || null;
             acts.push({ userId: p.id, name, avatar, series, ...a });
@@ -3557,17 +3689,19 @@ export default function SeriesBoxd() {
         });
         acts.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
         setFriendsActivity(acts.slice(0, 30));
+        setFriendsLibraries(libs);
       } catch(e) { console.warn("Friends activity:", e); }
       setFriendsActivityLoading(false);
     })();
   }, [authUser?.id, JSON.stringify(followingIds)]);
 
-  const addActivity = (type, label) => {
+  const addActivity = (type, label, extra = {}) => {
     setActivityLog(prev => [{
       id: Date.now() + Math.random(),
       type,
       label,
       ts: new Date().toISOString(),
+      ...extra,
     }, ...prev]);
   };
 
