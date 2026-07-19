@@ -810,7 +810,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
     setCommunityReviewsLoading(true);
     fetchCommunityReviews(series.tmdbId, currentUserId)
       .then(rs => { if (!cancelled) setCommunityReviews(rs); })
-      .catch(() => { if (!cancelled) setCommunityReviews([]); })
+      .catch(e => { console.error("Chargement des critiques communautaires:", e); if (!cancelled) setCommunityReviews([]); })
       .finally(() => { if (!cancelled) setCommunityReviewsLoading(false); });
     return () => { cancelled = true; };
   }, [series.tmdbId, currentUserId]);
@@ -2131,7 +2131,7 @@ const ALL_BADGES = [
   { id:"watchlist_nais",    cat:"Bibliothèque", icon:"🔖", name:"Watchlist naissante", desc:"10 séries en watchlist",                          color:"#6b7aa3" },
   { id:"liste_100",         cat:"Bibliothèque", icon:"💯", name:"Liste 100 fins",      desc:"100 séries en watchlist",                         color:"#6b7aa3" },
   { id:"collection_sec",    cat:"Bibliothèque", icon:"🔐", name:"Collection secrète",  desc:"10 listes personnalisées créées",                 color:"#8a6ba3" },
-  { id:"curateur",          cat:"Bibliothèque", icon:"🎨", name:"Curateur",            desc:"Une liste ayant reçu 25 likes",                   color:"#a36b8a" },
+  { id:"curateur",          cat:"Bibliothèque", icon:"🎨", name:"Curateur",            desc:"Une liste ayant reçu 3 likes",                    color:"#a36b8a" },
   { id:"organise",          cat:"Bibliothèque", icon:"📋", name:"Organisé",            desc:"Toutes les séries de sa watchlist dans des listes", color:"#6ba38a" },
   { id:"etiqueteur",        cat:"Bibliothèque", icon:"🏷️", name:"Étiqueteur",          desc:"Créer 10 tags différents",                        color:"#8a6ba3" },
   { id:"taxonomiste",       cat:"Bibliothèque", icon:"🗂️", name:"Taxonomiste",         desc:"Tagger 25 séries différentes",                    color:"#6b7aa3" },
@@ -2627,6 +2627,20 @@ function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel, dang
 
 // ─── SOCIAL HELPERS ───────────────────────────────────────────────────────────
 
+const listLikeKey = (ownerId, listId) => `${ownerId}:${listId}`;
+
+async function fetchListLikes(ownerId, listIds) {
+  // Table dédiée "list_likes" (voir instructions SQL) : sépare les likes du profil du propriétaire,
+  // ce qui évite d'avoir à écrire dans la ligne Supabase d'un autre utilisateur.
+  if (!ownerId || !listIds || listIds.length === 0) return { counts: {}, rows: [] };
+  const { data, error } = await supabase.from("list_likes").select("list_id, user_id").eq("owner_id", ownerId).in("list_id", listIds.map(String));
+  if (error) { console.warn("fetchListLikes:", error.message); return { counts: {}, rows: [] }; }
+  const counts = {};
+  listIds.forEach(id => { counts[listLikeKey(ownerId, id)] = 0; });
+  (data || []).forEach(r => { const k = listLikeKey(ownerId, r.list_id); counts[k] = (counts[k] || 0) + 1; });
+  return { counts, rows: data || [] };
+}
+
 async function fetchFollows(userId) {
   const [{ data: following }, { data: followers }] = await Promise.all([
     supabase.from("follows").select("following_id").eq("follower_id", userId),
@@ -2673,7 +2687,14 @@ async function searchUsers(query) {
 async function fetchCommunityReviews(tmdbId, excludeUserId) {
   // Les critiques sont stockées dans le profil de chaque utilisateur (data.extraReviews),
   // il faut donc parcourir les profils pour retrouver celles qui concernent cette série.
-  const { data } = await supabase.from("profiles").select("id, data").limit(200);
+  const { data, error } = await supabase.from("profiles").select("id, data").limit(200);
+  if (error) {
+    // Si ceci apparaît dans la console : la policy RLS de "profiles" bloque probablement
+    // la lecture des profils des autres comptes (voir instructions SQL fournies).
+    console.error("fetchCommunityReviews — erreur Supabase:", error.message, error);
+    return [];
+  }
+  console.log(`fetchCommunityReviews: ${data?.length || 0} profil(s) lu(s) au total pour la série ${tmdbId}`);
   const result = [];
   (data || []).forEach(row => {
     if (row.id === excludeUserId) return; // tes propres critiques sont déjà gérées localement
@@ -2702,6 +2723,7 @@ async function fetchUserProfile(userId) {
     extraReviews: data.data?.extraReviews || {},
     watchedEpisodes: data.data?.watchedEpisodes || {},
     favShows: u.favShows || data.data?.favShows || [],
+    lists: data.data?.lists || [],
   };
 }
 
@@ -2754,7 +2776,7 @@ function formatRelativeTime(iso) {
 }
 
 // ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
-function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], myWatchedEpisodes = {} }) {
+function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], myWatchedEpisodes = {}, listLikeCounts = {}, likedListKeys = new Set(), onToggleListLike, onRefreshListLikes }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -2771,6 +2793,7 @@ function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary =
       setProfile(p);
       setFollowerCount(followerIds.length);
       setFollowingCount(followingIds.length);
+      if (p?.lists?.length > 0) onRefreshListLikes?.(userId, p.lists.map(l => l.id));
       if (currentUserId) {
         const { data } = await supabase.from("follows").select("id")
           .eq("follower_id", currentUserId).eq("following_id", userId).single();
@@ -2891,6 +2914,42 @@ function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary =
           <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Derni\u00e8res notes</div>
           <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
             {rated.map(s => <div key={s.tmdbId||s.id} style={{ width: 90, flexShrink: 0 }}><PosterCard series={s} onOpen={onOpen} /></div>)}
+          </div>
+        </div>
+      )}
+
+      {(profile.lists || []).length > 0 && (
+        <div style={{ marginBottom: 24, padding: "0 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Listes</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {profile.lists.map(list => {
+              const key = `${userId}:${list.id}`;
+              const liked = likedListKeys.has(key);
+              const count = listLikeCounts[key] || 0;
+              return (
+                <div key={list.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", background: "#111", flexShrink: 0, display: "grid", gridTemplateColumns: (list.items||[]).length >= 2 ? "1fr 1fr" : "1fr", gap: 1 }}>
+                    {(list.items||[]).length === 0
+                      ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#2a2a2a", fontSize: 16 }}>☰</div>
+                      : list.items.slice(0, 4).map((s, i) => (
+                        <div key={i} style={{ overflow: "hidden", background: "#1a1a1a" }}>
+                          {s.poster && <img src={s.poster} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                        </div>
+                      ))
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: "#fff", fontWeight: 600, fontSize: 13, fontFamily: "'Playfair Display',Georgia,serif" }}>{list.name}</div>
+                    <div style={{ color: "#555", fontSize: 11, marginTop: 2 }}>{(list.items||[]).length} s\u00e9rie{(list.items||[]).length !== 1 ? "s" : ""}</div>
+                  </div>
+                  {currentUserId && (
+                    <button onClick={() => onToggleListLike?.(userId, list.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: liked ? ORANGE_DIM : "transparent", border: `1px solid ${liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "6px 12px", cursor: "pointer", color: liked ? ORANGE : "#555", fontSize: 12, flexShrink: 0 }}>
+                      <span>{liked ? "\u2665" : "\u2661"}</span><span>{count}</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -3135,6 +3194,8 @@ export default function SeriesBoxd() {
 
   const [pinnedBadgeIds, setPinnedBadgeIds] = useState([]);
   const [lists, setLists] = useState([]);
+  const [listLikeCounts, setListLikeCounts] = useState({}); // { "ownerId:listId": nombre de likes }
+  const [likedListKeys, setLikedListKeys] = useState(new Set()); // clés "ownerId:listId" likées par le compte connecté
   const [showCreateList, setShowCreateList] = useState(false);
   const [viewingList, setViewingList] = useState(null);
   const [library, setLibrary] = useState([]);
@@ -3475,7 +3536,7 @@ export default function SeriesBoxd() {
         watchlist_nais:   watchlistSize >= 10,
         liste_100:        watchlistSize >= 100,
         collection_sec:   listsCount >= 10,
-        curateur:         lists.some(l => (l.likes || 0) >= 1),
+        curateur:         Object.entries(listLikeCounts).some(([k, c]) => k.startsWith(`${authUser?.id}:`) && c >= 3),
         organise:         watchlistSize >= 5 && listsCount >= 3,
         nettoyeur_watchlist: nettoyeurWatchlistCondition,
         etiqueteur:       uniqueTagsCount >= 10,
@@ -3576,7 +3637,7 @@ export default function SeriesBoxd() {
     }
     prevUnlockedRef.current = newIds;
     setUnlockedBadgeIds(newIds);
-  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount, posterClicks, tags, friendsLibraries, pinnedBadgeIds, rewatchCounts, watchlistPeak]);
+  }, [dataLoaded, watchedEpisodes, extraReviews, library, activityLog, lists, user, followingIds.length, followerCount, posterClicks, tags, friendsLibraries, pinnedBadgeIds, rewatchCounts, watchlistPeak, listLikeCounts, authUser?.id]);
 
   // ── Auth + chargement initial ────────────────────────────────────────────
   const loadAllDataFor = async (uid) => {
@@ -3654,6 +3715,13 @@ export default function SeriesBoxd() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // ── Rafraîchissement des likes sur mes propres listes (badge Curateur) ──────
+  const myListIdsKey = lists.map(l => l.id).join(",");
+  useEffect(() => {
+    if (!authUser?.id || lists.length === 0) return;
+    refreshListLikes(authUser.id, lists.map(l => l.id));
+  }, [authUser?.id, myListIdsKey]);
 
   // ── Suivi du pic historique de la watchlist (pour le badge Nettoyeur de watchlist) ──
   useEffect(() => {
@@ -3816,12 +3884,46 @@ export default function SeriesBoxd() {
     addActivity("comment", `Tu as commenté la critique de ${review?.user || "quelqu'un"} sur ${series?.title || "une série"}`);
   };
 
-  const toggleListLike = (listId) => {
-    setLists(prev => prev.map(l => {
-      if (l.id !== listId) return l;
-      const nowLiked = !l.likedByMe;
-      return { ...l, likedByMe: nowLiked, likes: Math.max(0, (l.likes || 0) + (nowLiked ? 1 : -1)) };
-    }));
+  const refreshListLikes = useCallback(async (ownerId, listIds) => {
+    if (!ownerId || !listIds || listIds.length === 0) return;
+    const { rows } = await fetchListLikes(ownerId, listIds);
+    setListLikeCounts(prev => {
+      const next = { ...prev };
+      listIds.forEach(id => { next[listLikeKey(ownerId, id)] = 0; });
+      rows.forEach(r => { const k = listLikeKey(ownerId, r.list_id); next[k] = (next[k] || 0) + 1; });
+      return next;
+    });
+    if (authUser?.id) {
+      setLikedListKeys(prev => {
+        const next = new Set(prev);
+        listIds.forEach(id => next.delete(listLikeKey(ownerId, id)));
+        rows.filter(r => r.user_id === authUser.id).forEach(r => next.add(listLikeKey(ownerId, r.list_id)));
+        return next;
+      });
+    }
+  }, [authUser?.id]);
+
+  const toggleListLikeRemote = async (ownerId, listId) => {
+    if (!authUser?.id) return;
+    const key = listLikeKey(ownerId, listId);
+    const wasLiked = likedListKeys.has(key);
+    // Mise à jour optimiste
+    setLikedListKeys(prev => { const n = new Set(prev); wasLiked ? n.delete(key) : n.add(key); return n; });
+    setListLikeCounts(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + (wasLiked ? -1 : 1)) }));
+    try {
+      if (wasLiked) {
+        const { error } = await supabase.from("list_likes").delete().eq("owner_id", ownerId).eq("list_id", String(listId)).eq("user_id", authUser.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("list_likes").insert({ owner_id: ownerId, list_id: String(listId), user_id: authUser.id });
+        if (error) throw error;
+      }
+    } catch (e) {
+      console.warn("toggleListLikeRemote:", e.message);
+      // Rollback en cas d'échec (ex: policy RLS manquante côté Supabase)
+      setLikedListKeys(prev => { const n = new Set(prev); wasLiked ? n.add(key) : n.delete(key); return n; });
+      setListLikeCounts(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + (wasLiked ? 1 : -1)) }));
+    }
   };
 
   const handleAddTag = (tmdbId, tag) => {
@@ -4313,7 +4415,7 @@ export default function SeriesBoxd() {
                       <div style={{ flex: 1 }}>
                         <div style={{ color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1.3 }}>{list.name}</div>
                         {list.description ? <div style={{ color: "#555", fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>{list.description}</div> : null}
-                        <div style={{ color: "#444", fontSize: 11, marginTop: 6 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""} · {new Date(list.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}{list.likes > 0 && <span style={{ color: list.likedByMe ? ORANGE : "#444" }}> · {list.likedByMe ? "♥" : "♡"} {list.likes}</span>}</div>
+                        <div style={{ color: "#444", fontSize: 11, marginTop: 6 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""} · {new Date(list.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}{(listLikeCounts[`${authUser?.id}:${list.id}`] || 0) > 0 && <span style={{ color: likedListKeys.has(`${authUser?.id}:${list.id}`) ? ORANGE : "#444" }}> · {likedListKeys.has(`${authUser?.id}:${list.id}`) ? "♥" : "♡"} {listLikeCounts[`${authUser?.id}:${list.id}`] || 0}</span>}</div>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 4, flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
@@ -4364,8 +4466,6 @@ export default function SeriesBoxd() {
                 description: listDesc.trim(),
                 items: selectedItems,
                 createdAt: new Date().toISOString(),
-                likes: 0,
-                likedByMe: false,
               };
               setLists(prev => [newList, ...prev]);
               addActivity("list", `Tu as créé la liste "${newList.name}"`);
@@ -4482,8 +4582,8 @@ export default function SeriesBoxd() {
                   <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{list.items.length} série{list.items.length !== 1 ? "s" : ""}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button onClick={() => toggleListLike(list.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: list.likedByMe ? ORANGE_DIM : "transparent", border: `1px solid ${list.likedByMe ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "6px 12px", cursor: "pointer", color: list.likedByMe ? ORANGE : "#555", fontSize: 12, flexShrink: 0 }}>
-                    <span>{list.likedByMe ? "♥" : "♡"}</span><span>{list.likes || 0}</span>
+                  <button onClick={() => toggleListLikeRemote(authUser?.id, list.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: likedListKeys.has(`${authUser?.id}:${list.id}`) ? ORANGE_DIM : "transparent", border: `1px solid ${likedListKeys.has(`${authUser?.id}:${list.id}`) ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "6px 12px", cursor: "pointer", color: likedListKeys.has(`${authUser?.id}:${list.id}`) ? ORANGE : "#555", fontSize: 12, flexShrink: 0 }}>
+                    <span>{likedListKeys.has(`${authUser?.id}:${list.id}`) ? "♥" : "♡"}</span><span>{listLikeCounts[`${authUser?.id}:${list.id}`] || 0}</span>
                   </button>
                   <button onClick={() => askConfirm(`Supprimer la liste "${list.name}" ?`, () => { setLists(prev => prev.filter(l => l.id !== list.id)); setViewingList(null); })} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -4588,7 +4688,7 @@ export default function SeriesBoxd() {
 
         {/* Public Profile */}
         {viewingProfile && (
-          <PublicProfilePage userId={viewingProfile.userId} currentUserId={authUser?.id} onOpen={openSeries} onClose={() => setViewingProfile(null)} myLibrary={library} myWatchedEpisodes={watchedEpisodes} />
+          <PublicProfilePage userId={viewingProfile.userId} currentUserId={authUser?.id} onOpen={openSeries} onClose={() => setViewingProfile(null)} myLibrary={library} myWatchedEpisodes={watchedEpisodes} listLikeCounts={listLikeCounts} likedListKeys={likedListKeys} onToggleListLike={toggleListLikeRemote} onRefreshListLikes={refreshListLikes} />
         )}
         {/* Followers Page */}
         {showFollowersPage && (
