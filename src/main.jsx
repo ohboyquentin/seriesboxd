@@ -1,5 +1,5 @@
 import ReactDOM from 'react-dom/client'
-import SeriesBoxd from './seriesboxd.jsx'
+import SeriesBoxd from './App.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(<SeriesBoxd />)
 
