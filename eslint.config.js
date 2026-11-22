@@ -17,5 +17,14 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Autorise `const { a, ...reste } = obj` pour retirer des champs d'un objet
+      'no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
+  },
+  {
+    // Code exécuté par Node (proxy local, fonctions Vercel) : variables globales de Node
+    files: ['proxy.js', 'api/**/*.js'],
+    languageOptions: { globals: globals.node },
   },
 ])

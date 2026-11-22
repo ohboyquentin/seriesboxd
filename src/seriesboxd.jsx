@@ -15,8 +15,7 @@ const ORANGE_DIM = "rgba(192, 28, 207, 0.17)";
 const ORANGE_BORDER = "rgba(219, 157, 228, 0.94)";
 const IMG = "https://image.tmdb.org/t/p";
 // Date de lancement de l'app — sert de référence fixe pour le badge "Précurseur".
-// ⚠️ À ajuster si besoin pour correspondre à la vraie date de mise en ligne publique.
-const APP_LAUNCH_DATE = new Date("2025-01-01T00:00:00Z");
+const APP_LAUNCH_DATE = new Date("2026-06-10T00:00:00Z"); // premier commit du projet
 
 // ─── TMDB via proxy local (rapide, sans passer par Claude) ────────────────────
 
@@ -120,7 +119,7 @@ async function tmdbViaClaude(path, params = {}) {
         console.warn(`[TMDB] Hors-ligne — données en cache du ${new Date(ts).toLocaleTimeString()} utilisées`);
         return data;
       }
-    } catch (_) { /* localStorage illisible */ }
+    } catch { /* localStorage illisible */ }
     throw err; // Aucun cache dispo → on laisse remonter l'erreur à ErrorState
   }
 }
@@ -235,11 +234,6 @@ const ALL_PLATFORMS = [
   { id: "15",   name: "Hulu",        logo: "H", color: "#1CE783" },
 ];
 const profileNavItems = ["TV Shows", "À venir", "Badges", "Reviews", "Lists", "Watchlist", "Tags", "Abonnements", "Abonnés"];
-const friends = [
-  { name: "Camille", avatar: "C", activity: "a noté Severance", rating: 5, time: "2h" },
-  { name: "Théo",    avatar: "T", activity: "a ajouté The Bear", rating: null, time: "5h" },
-  { name: "Jade",    avatar: "J", activity: "a noté Andor", rating: 4, time: "1j" },
-];
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 
@@ -452,7 +446,7 @@ function RatingBars({ ratingDist, avgRating }) {
 // ─── CONTINUE WATCHING SECTION ───────────────────────────────────────────────
 
 function ContinueWatchingSection({ library, watchedEpisodes, onOpen, onSeeAll }) {
-  const [showAll, setShowAll] = useState(false);
+  const [showAll] = useState(false);
 
   const inProgress = library.filter(s => {
     const eps = watchedEpisodes[s.tmdbId];
@@ -743,7 +737,7 @@ function SeeAllPage({ title, endpoint, inProgressList, onOpen, onClose }) {
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, watchHistory, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
+function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
@@ -1299,7 +1293,7 @@ function SearchPage({ onOpen, onViewProfile, currentUserId }) {
         if (filters.yearTo) shows = shows.filter(s => s.year <= parseInt(filters.yearTo));
         if (filters.status) shows = shows.filter(s => s.status === filters.status);
         setResults(shows);
-      } catch(e) { setResults([]); setSearchError(true); }
+      } catch { setResults([]); setSearchError(true); }
       setLoading(false);
     }, 500);
   }, [query, filters]);
@@ -1624,7 +1618,7 @@ function Onboarding({ onComplete }) {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-function SettingsPage({ user, onSave, onClose, watched, library, authEmail, onLogout }) {
+function SettingsPage({ user, onSave, onClose, watched, authEmail, onLogout }) {
   const [name,      setName]      = useState(user.name      || "");
   const [pseudo,    setPseudo]    = useState(user.pseudo     || user.name || "");
   const [bio,       setBio]       = useState(user.bio        || "");
@@ -2417,7 +2411,7 @@ function BadgesPage({ unlockedBadgeIds = [], pinnedBadgeIds = [], onPin, onUnpin
 
       {/* Pinned slots */}
       <div style={{ padding: "0 20px 20px", borderBottom: "1px solid #111" }}>
-        <div style={{ fontSize: 12, color: "#555", marginBottom: 12, textTransform: "uppercase", letterSpacing: ".06em", fontSize: 10 }}>Badges sur le profil (4 max)</div>
+        <div style={{ color: "#555", marginBottom: 12, textTransform: "uppercase", letterSpacing: ".06em", fontSize: 10 }}>Badges sur le profil (4 max)</div>
         <div style={{ display: "flex", gap: 12 }}>
           {[0,1,2,3].map(i => {
             const bid = pinnedBadgeIds[i];
@@ -2882,7 +2876,7 @@ function computeCompatibility(myWatched, theirWatched) {
   const myRated = myWatched.filter(s => s.userRating);
   const theirRated = theirWatched.filter(s => s.userRating);
   const bothRated = myRated.filter(s => theirRated.find(t => t.tmdbId === s.tmdbId));
-  let ratingScore = 0;
+  let ratingScore;
   if (bothRated.length > 0) {
     const avgDiff = bothRated.reduce((acc, s) => {
       const theirs = theirRated.find(t => t.tmdbId === s.tmdbId);
@@ -2911,7 +2905,7 @@ function formatRelativeTime(iso) {
 }
 
 // ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
-function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], myWatchedEpisodes = {}, listLikeCounts = {}, likedListKeys = new Set(), onToggleListLike, onRefreshListLikes }) {
+function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], listLikeCounts = {}, likedListKeys = new Set(), onToggleListLike, onRefreshListLikes }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -3256,7 +3250,7 @@ function UpcomingPage({ library, watchedEpisodes = {} }) {
         </div>
       ) : (
         <div style={{ padding: "0 20px" }}>
-          {items.map((item, i) => (
+          {items.map((item) => (
             <div key={item.tmdbId} style={{ display: "flex", gap: 14, padding: "14px 0", borderBottom: "1px solid #111", alignItems: "center" }}>
               {/* Poster */}
               <div style={{ width: 52, height: 78, borderRadius: 8, overflow: "hidden", background: "#1a1a1a", flexShrink: 0 }}>
@@ -4004,7 +3998,7 @@ export default function SeriesBoxd() {
       const cur = prev[id] || { count: 0, lastDate: null };
       return { ...prev, [id]: { count: cur.count + 1, lastDate: new Date().toISOString().slice(0, 10) } };
     });
-    addActivity("rewatch", "Tu as rewatch" + title);
+    addActivity("rewatch", "Tu as rewatch " + title);
   };
 
   const handleDeleteReview = (sid, rid) => {
@@ -4187,8 +4181,6 @@ export default function SeriesBoxd() {
 
           {/* DIARY */}
           {tab === "diary" && (() => {
-            const ic = (symbol, size=18) => <span style={{color:ORANGE,fontSize:size,lineHeight:1}}>{symbol}</span>;
-            const ICONS = { watch: ic("◉"), rate: ic("★",20), review: ic("✎"), like: ic("♥"), episode: ic("▶",15), watchlist: ic("◈"), list: ic("≡") };
             const formatRelative = (iso) => {
               const diff = Date.now() - new Date(iso).getTime();
               const m = Math.floor(diff / 60000);
