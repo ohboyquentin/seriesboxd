@@ -18,23 +18,30 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
   const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
+    let cancelled = false; // passe à true si on ouvre un autre profil avant la réponse
     (async () => {
       const [p, { followingIds, followerIds }] = await Promise.all([
         fetchUserProfile(userId),
         fetchFollows(userId),
       ]);
+      if (cancelled) return;
       setProfile(p);
       setFollowerCount(followerIds.length);
       setFollowingCount(followingIds.length);
       if (p?.lists?.length > 0) onRefreshListLikes?.(userId, p.lists.map(l => l.id));
       if (currentUserId) {
+        // maybeSingle : « pas d'abonnement » n'est pas une erreur (single() renvoyait une 406)
         const { data } = await supabase.from("follows").select("id")
-          .eq("follower_id", currentUserId).eq("following_id", userId).single();
+          .eq("follower_id", currentUserId).eq("following_id", userId).maybeSingle();
+        if (cancelled) return;
         setIsFollowing(!!data);
       }
       setLoading(false);
     })();
-  }, [userId]);
+    return () => { cancelled = true; };
+    // onRefreshListLikes est volontairement exclu : nouvelle fonction à chaque rendu du parent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, currentUserId]);
 
   const handleFollow = async () => {
     if (!currentUserId || followLoading) return;

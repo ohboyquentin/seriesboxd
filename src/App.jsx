@@ -200,35 +200,62 @@ export default function SeriesBoxd() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const authUserId = authUser?.id;
+
+  // Recharge le nombre de likes (et mes likes) pour les listes d'un utilisateur
+  const refreshListLikes = useCallback(async (ownerId, listIds) => {
+    if (!ownerId || !listIds || listIds.length === 0) return;
+    const { rows } = await fetchListLikes(ownerId, listIds);
+    setListLikeCounts(prev => {
+      const next = { ...prev };
+      listIds.forEach(id => { next[listLikeKey(ownerId, id)] = 0; });
+      rows.forEach(r => { const k = listLikeKey(ownerId, r.list_id); next[k] = (next[k] || 0) + 1; });
+      return next;
+    });
+    if (authUserId) {
+      setLikedListKeys(prev => {
+        const next = new Set(prev);
+        listIds.forEach(id => next.delete(listLikeKey(ownerId, id)));
+        rows.filter(r => r.user_id === authUserId).forEach(r => next.add(listLikeKey(ownerId, r.list_id)));
+        return next;
+      });
+    }
+  }, [authUserId]);
+
   // ── Rafraîchissement des likes sur mes propres listes (badge Curateur) ──────
   const myListIdsKey = lists.map(l => l.id).join(",");
   useEffect(() => {
-    if (!authUser?.id || lists.length === 0) return;
-    refreshListLikes(authUser.id, lists.map(l => l.id));
-  }, [authUser?.id, myListIdsKey]);
+    if (!authUserId || !myListIdsKey) return;
+    refreshListLikes(authUserId, myListIdsKey.split(","));
+  }, [authUserId, myListIdsKey, refreshListLikes]);
 
   // ── Suivi du pic historique de la watchlist (pour le badge Nettoyeur de watchlist) ──
   useEffect(() => {
     if (!dataLoaded) return;
     const currentWatchlistSize = library.filter(s => s.inWatchlist).length;
-    if (currentWatchlistSize > watchlistPeak) setWatchlistPeak(currentWatchlistSize);
+    setWatchlistPeak(prev => Math.max(prev, currentWatchlistSize));
   }, [library, dataLoaded]);
 
   // ── Sauvegarde automatique dans localStorage ───────────────────────────────
   useEffect(() => {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
-    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUser?.id, remoteOkRef.current);
-  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded]);
+    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUserId, remoteOkRef.current);
+  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded, authUserId]);
 
+  // Clé stable de la liste des abonnements (change seulement si la liste change vraiment)
+  const followingKey = followingIds.join(",");
   useEffect(() => {
-    if (!authUser?.id || followingIds.length === 0) { setFriendsActivity([]); setFriendsLibraries([]); return; }
+    const ids = followingKey ? followingKey.split(",") : [];
+    if (!authUserId || ids.length === 0) { setFriendsActivity([]); setFriendsLibraries([]); return; }
+    let cancelled = false; // passe à true si les abonnements changent avant la réponse
     setFriendsActivityLoading(true);
     (async () => {
       try {
         // Uniquement les parties du profil utiles au fil (pas les épisodes, critiques, etc.)
         const { data: rows } = await supabase.from("profiles")
           .select("id, user:data->user, library:data->library, activityLog:data->activityLog, favShows:data->favShows")
-          .in("id", followingIds);
+          .in("id", ids);
+        if (cancelled) return;
         const profiles = (rows || []).map(r => ({ id: r.id, data: { user: r.user, library: r.library, activityLog: r.activityLog, favShows: r.favShows } }));
         const acts = [];
         const libs = [];
@@ -247,9 +274,10 @@ export default function SeriesBoxd() {
         setFriendsActivity(acts.slice(0, 30));
         setFriendsLibraries(libs);
       } catch(e) { console.warn("Friends activity:", e); }
-      setFriendsActivityLoading(false);
+      if (!cancelled) setFriendsActivityLoading(false);
     })();
-  }, [authUser?.id, JSON.stringify(followingIds)]);
+    return () => { cancelled = true; };
+  }, [authUserId, followingKey]);
 
   const addActivity = (type, label, extra = {}) => {
     setActivityLog(prev => [{
@@ -372,25 +400,6 @@ export default function SeriesBoxd() {
     addActivity("comment", `Tu as commenté la critique de ${review?.user || "quelqu'un"} sur ${series?.title || "une série"}`);
   };
 
-  const refreshListLikes = useCallback(async (ownerId, listIds) => {
-    if (!ownerId || !listIds || listIds.length === 0) return;
-    const { rows } = await fetchListLikes(ownerId, listIds);
-    setListLikeCounts(prev => {
-      const next = { ...prev };
-      listIds.forEach(id => { next[listLikeKey(ownerId, id)] = 0; });
-      rows.forEach(r => { const k = listLikeKey(ownerId, r.list_id); next[k] = (next[k] || 0) + 1; });
-      return next;
-    });
-    if (authUser?.id) {
-      setLikedListKeys(prev => {
-        const next = new Set(prev);
-        listIds.forEach(id => next.delete(listLikeKey(ownerId, id)));
-        rows.filter(r => r.user_id === authUser.id).forEach(r => next.add(listLikeKey(ownerId, r.list_id)));
-        return next;
-      });
-    }
-  }, [authUser?.id]);
-
   const toggleListLikeRemote = async (ownerId, listId) => {
     if (!authUser?.id) return;
     const key = listLikeKey(ownerId, listId);
@@ -425,15 +434,20 @@ export default function SeriesBoxd() {
     setTags(prev => ({ ...prev, [tmdbId]: (prev[tmdbId] || []).filter(t => t !== tag) }));
   };
 
-  // Défile les badges un par un — 3 secondes par badge, 0.5s entre chaque
+  // Défile les badges un par un : quand aucun toast n'est affiché, on prend le suivant de la file
   useEffect(() => {
     if (badgeQueue.length === 0 || newlyUnlocked) return;
-    const next = badgeQueue[0];
-    setNewlyUnlocked(next);
+    setNewlyUnlocked(badgeQueue[0]);
     setBadgeQueue(prev => prev.slice(1));
+  }, [badgeQueue, newlyUnlocked]);
+
+  // Masque le toast affiché au bout de 3 secondes.
+  // (Effet séparé : avant, le minuteur était annulé dès le rendu suivant et le toast restait affiché.)
+  useEffect(() => {
+    if (!newlyUnlocked) return;
     const timer = setTimeout(() => setNewlyUnlocked(null), 3000);
     return () => clearTimeout(timer);
-  }, [badgeQueue, newlyUnlocked]);
+  }, [newlyUnlocked]);
 
   const watched = library.filter(s => s.watched);
   const NAV_ICONS = {

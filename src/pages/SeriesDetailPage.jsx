@@ -32,6 +32,8 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
   // Remonte les changements au parent pour sauvegarde
   useEffect(() => {
     onWatchedEpisodesChange?.(watchedEps);
+    // Volontaire : le parent recrée cette fonction à chaque rendu ; l'ajouter relancerait l'effet en boucle
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedEps]);
 
   const toggleEpisode = (seasonN, epN) => {
@@ -127,6 +129,8 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
       } catch(e) { setDetailError(true); console.error(e); }
       finally { setLoading(false); }
     })();
+    // Volontaire : on ne recharge la fiche que si on change de série (les autres champs servent de repli)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series.tmdbId]);
 
   useEffect(() => {

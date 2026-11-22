@@ -43,18 +43,21 @@ export function SearchPage({ onOpen, onViewProfile, currentUserId }) {
     if (!query.trim()) { setResults([]); setUserResults([]); setSearchError(false); return; }
     setLoading(true);
     setSearchError(false);
+    let cancelled = false; // passe à true si la recherche change avant la réponse
     debounceRef.current = setTimeout(async () => {
       try {
         const [tmdbData, usersData] = await Promise.all([
           tmdbViaClaude("/search/tv", { query }),
           searchUsers(query),
         ]);
+        if (cancelled) return; // réponse d'une ancienne recherche → ignorée
         const filteredUsers = usersData.filter(u => u.id !== currentUserId);
         setUserResults(filteredUsers);
         if (currentUserId && filteredUsers.length > 0) {
           const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", filteredUsers.map(u => u.id));
           const map = {};
           (myF || []).forEach(r => { map[r.following_id] = true; });
+          if (cancelled) return;
           setFollowMapSearch(map);
         }
         const data = tmdbData;
@@ -64,10 +67,11 @@ export function SearchPage({ onOpen, onViewProfile, currentUserId }) {
         if (filters.yearTo) shows = shows.filter(s => s.year <= parseInt(filters.yearTo));
         if (filters.status) shows = shows.filter(s => s.status === filters.status);
         setResults(shows);
-      } catch { setResults([]); setSearchError(true); }
-      setLoading(false);
+      } catch { if (!cancelled) { setResults([]); setSearchError(true); } }
+      if (!cancelled) setLoading(false);
     }, 500);
-  }, [query, filters]);
+    return () => { cancelled = true; clearTimeout(debounceRef.current); };
+  }, [query, filters, currentUserId]);
 
   const showResults = query.length > 0 || activeCount > 0;
 

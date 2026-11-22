@@ -20,6 +20,8 @@ export default defineConfig([
     rules: {
       // Autorise `const { a, ...reste } = obj` pour retirer des champs d'un objet
       'no-unused-vars': ['error', { ignoreRestSiblings: true }],
+      // Recommandation de style (indicateur de chargement mis à jour dans un effet), pas un bug
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
   {
