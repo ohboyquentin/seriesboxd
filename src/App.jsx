@@ -647,7 +647,7 @@ export default function SeriesBoxd() {
                 <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
                   @{user.pseudo || user.name}
                   {user.location && <span style={{ color: "#444" }}> · 📍 {user.location}</span>}
-                  <span style={{ color: "#444" }}> · membre depuis 2025</span>
+                  {user.joinDate && <span style={{ color: "#444" }}> · membre depuis {new Date(user.joinDate).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</span>}
                 </div>
                 {/* Website */}
                 {user.website && <div style={{ marginTop: 6 }}><a href={user.website} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: ORANGE, textDecoration: "none" }}>{user.website.replace(/^https?:\/\//, "")}</a></div>}
@@ -824,7 +824,7 @@ export default function SeriesBoxd() {
                       if (item === "Badges")   { setShowBadgesPage(true);  return; }
                       if (item === "Reviews")  { setShowReviewsPage(true); return; }
                       if (item === "Tags")        { setShowTagsPage(true);      return; }
-                      if (item === "Abonn\u00e9s")    { setShowFollowersPage(true); return; }
+                      if (item === "Abonnés")    { setShowFollowersPage(true); return; }
                       if (item === "Abonnements") { setShowFollowingPage(true); return; }
                       setProfileTab(item);
                     }} style={{

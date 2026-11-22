@@ -46,10 +46,10 @@ export function FollowListPage({ title, userId, type, currentUserId, onViewProfi
     <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 920, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 16px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{title}</div>
-        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{users.length} {type === "followers" ? "abonn\u00e9" : "abonnement"}{users.length !== 1 ? "s" : ""}</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{users.length} {type === "followers" ? "abonné" : "abonnement"}{users.length !== 1 ? "s" : ""}</div>
       </div>
       {loading ? <Spinner /> : users.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 20px", color: "#333", fontSize: 14 }}>Aucun {type === "followers" ? "abonn\u00e9" : "abonnement"} pour l'instant</div>
+        <div style={{ textAlign: "center", padding: "60px 20px", color: "#333", fontSize: 14 }}>Aucun {type === "followers" ? "abonné" : "abonnement"} pour l'instant</div>
       ) : (
         <div style={{ padding: "0 20px" }}>
           {users.map(u => (
@@ -63,7 +63,7 @@ export function FollowListPage({ title, userId, type, currentUserId, onViewProfi
               </div>
               {currentUserId && currentUserId !== u.id && (
                 <button onClick={() => toggleFollow(u.id)} style={{ padding: "7px 14px", borderRadius: 16, background: followingMap[u.id] ? "#1a1a1a" : ORANGE_DIM, border: "1px solid " + (followingMap[u.id] ? "#2a2a2a" : ORANGE_BORDER), color: followingMap[u.id] ? "#666" : ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  {followingMap[u.id] ? "Suivi \u2713" : "Suivre"}
+                  {followingMap[u.id] ? "Suivi ✓" : "Suivre"}
                 </button>
               )}
             </div>

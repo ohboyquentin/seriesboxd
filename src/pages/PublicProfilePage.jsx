@@ -67,13 +67,13 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
     ? computeCompatibility((myLibrary || []).filter(s => s.watched), (profile.library || []).filter(s => s.watched))
     : null;
   const ic = (sym, size=18) => <span style={{ color: ORANGE, fontSize: size, lineHeight: 1 }}>{sym}</span>;
-  const ICONS = { watch: ic("\u25c9"), rate: ic("\u2605",20), review: ic("\u270e"), like: ic("\u2665"), episode: ic("\u25b6",15), watchlist: ic("\u25c8"), list: ic("\u2261"), rewatch: ic("\u21ba") };
+  const ICONS = { watch: ic("◉"), rate: ic("★",20), review: ic("✎"), like: ic("♥"), episode: ic("▶",15), watchlist: ic("◈"), list: ic("≡"), rewatch: ic("↺") };
 
   return (
     <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ position: "sticky", top: 0, background: "rgba(8,8,8,0.95)", backdropFilter: "blur(12px)", zIndex: 10, padding: "52px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #111" }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Profil</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>\u00d7</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>×</button>
       </div>
 
       <div style={{ textAlign: "center", padding: "24px 20px 16px" }}>
@@ -105,7 +105,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
 
       {profile.favGenres?.length > 0 && (
         <div style={{ margin: "0 20px 16px", padding: "14px 16px", background: "#1a1a1a", border: "1px solid rgba(219,157,228,0.94)", borderRadius: 14 }}>
-          <div style={{ fontSize: 10, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>\u2726 Genres favoris</div>
+          <div style={{ fontSize: 10, color: "#fff", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>✦ Genres favoris</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {profile.favGenres.map(g => <span key={g} style={{ background: "#2a2a2a", border: "1px solid " + ORANGE_BORDER, color: "#fff", fontSize: 12, padding: "5px 12px", borderRadius: 20 }}>{g}</span>)}
           </div>
@@ -113,7 +113,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8, padding: "0 20px" }}>
-        {[{ n: watched.length, label: "Vues" }, { n: totalEps, label: "\u00c9pisodes" }, { n: followerCount, label: "Abonn\u00e9s" }, { n: followingCount, label: "Abonn" }].map((stat, i) => (
+        {[{ n: watched.length, label: "Vues" }, { n: totalEps, label: "Épisodes" }, { n: followerCount, label: "Abonnés" }, { n: followingCount, label: "Abonn" }].map((stat, i) => (
           <div key={i} style={{ background: "#0e0e0e", borderRadius: 12, padding: "10px 6px", textAlign: "center", border: "1px solid #181818" }}>
             <div style={{ fontSize: 9, color: "#555", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".04em" }}>{stat.label}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: ORANGE, fontFamily: "'Playfair Display',Georgia,serif", lineHeight: 1 }}>{stat.n}</div>
@@ -127,7 +127,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
           const badge = bid ? ALL_BADGES.find(b => b.id === bid) : null;
           return (
             <div key={i} style={{ background: "#0e0e0e", borderRadius: 12, padding: "10px 6px", border: badge ? "1px solid " + badge.color + "33" : "1px dashed #1e1e1e", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              {badge ? <><HexBadge badge={badge} unlocked size={38} /><div style={{ fontSize: 8, color: badge.color, textAlign: "center", lineHeight: 1.2, fontWeight: 600 }}>{badge.name}</div></> : <span style={{ fontSize: 16, opacity: 0.12 }}>{"\u2b21"}</span>}
+              {badge ? <><HexBadge badge={badge} unlocked size={38} /><div style={{ fontSize: 8, color: badge.color, textAlign: "center", lineHeight: 1.2, fontWeight: 600 }}>{badge.name}</div></> : <span style={{ fontSize: 16, opacity: 0.12 }}>{"⬡"}</span>}
             </div>
           );
         })}
@@ -144,7 +144,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
 
       {rated.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Derni\u00e8res notes</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12, padding: "0 20px" }}>Dernières notes</div>
           <div style={{ display: "flex", gap: 12, padding: "0 20px", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
             {rated.map(s => <div key={s.tmdbId||s.id} style={{ width: 90, flexShrink: 0 }}><PosterCard series={s} onOpen={onOpen} /></div>)}
           </div>
@@ -173,11 +173,11 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: "#fff", fontWeight: 600, fontSize: 13, fontFamily: "'Playfair Display',Georgia,serif" }}>{list.name}</div>
-                    <div style={{ color: "#555", fontSize: 11, marginTop: 2 }}>{(list.items||[]).length} s\u00e9rie{(list.items||[]).length !== 1 ? "s" : ""}</div>
+                    <div style={{ color: "#555", fontSize: 11, marginTop: 2 }}>{(list.items||[]).length} série{(list.items||[]).length !== 1 ? "s" : ""}</div>
                   </div>
                   {currentUserId && (
                     <button onClick={() => onToggleListLike?.(userId, list.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: liked ? ORANGE_DIM : "transparent", border: `1px solid ${liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "6px 12px", cursor: "pointer", color: liked ? ORANGE : "#555", fontSize: 12, flexShrink: 0 }}>
-                      <span>{liked ? "\u2665" : "\u2661"}</span><span>{count}</span>
+                      <span>{liked ? "♥" : "♡"}</span><span>{count}</span>
                     </button>
                   )}
                 </div>
@@ -189,11 +189,11 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
 
       {recentActivity.length > 0 && (
         <div style={{ padding: "0 20px 20px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Activit\u00e9 r\u00e9cente</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 12 }}>Activité récente</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {recentActivity.map((entry, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
-                <div style={{ width: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{ICONS[entry.type] || ic("\u25c9")}</div>
+                <div style={{ width: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{ICONS[entry.type] || ic("◉")}</div>
                 <div style={{ flex: 1, color: "#ccc", fontSize: 13, lineHeight: 1.4 }}>{entry.label}</div>
                 <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(entry.ts)}</div>
               </div>

@@ -41,7 +41,7 @@ export function Onboarding({ onComplete }) {
             <div style={{ marginTop: 32, padding: "16px", background: "#0e0e0e", borderRadius: 14, border: "1px solid #181818" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg, #c026d3, #f0abfc)`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#fff", fontSize: 16 }}>{name?name[0].toUpperCase():"?"}</div>
-                <div><div style={{ color: "#fff", fontWeight: 600 }}>{name||"ton_pseudo"}</div><div style={{ color: "#444", fontSize: 12 }}>membre depuis 2025</div></div>
+                <div><div style={{ color: "#fff", fontWeight: 600 }}>{name||"ton_pseudo"}</div><div style={{ color: "#444", fontSize: 12 }}>membre depuis {new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</div></div>
               </div>
             </div>
           </div>
