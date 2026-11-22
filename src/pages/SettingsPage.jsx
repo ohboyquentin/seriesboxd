@@ -5,7 +5,7 @@ import { resizeImageDataUrl } from "../lib/avatar.js";
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-export function SettingsPage({ user, onSave, onClose, watched, authEmail, onLogout }) {
+export function SettingsPage({ user, onSave, onClose, watched, authEmail, onChangePassword, onLogout }) {
   const [name,      setName]      = useState(user.name      || "");
   const [pseudo,    setPseudo]    = useState(user.pseudo     || user.name || "");
   const [bio,       setBio]       = useState(user.bio        || "");
@@ -195,6 +195,9 @@ export function SettingsPage({ user, onSave, onClose, watched, authEmail, onLogo
         <div style={{ background: "#111", borderRadius: 12, padding: "12px 16px", fontSize: 13, color: "#555", marginBottom: 12 }}>
           Connecté en tant que <span style={{ color: "#aaa" }}>{authEmail}</span>
         </div>
+        <button onClick={onChangePassword} style={{ width: "100%", padding: "13px 16px", background: "#0e0e0e", border: "1px solid #222", borderRadius: 12, color: "#ddd", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+          🔑 Changer mon mot de passe
+        </button>
         <button onClick={onLogout} style={{ width: "100%", padding: "13px 16px", background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, color: "#ef4444", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           Se déconnecter
         </button>

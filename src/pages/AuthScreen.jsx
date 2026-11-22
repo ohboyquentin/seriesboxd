@@ -28,7 +28,7 @@ export function AuthScreen() {
         if (e) throw e;
         setSuccess("Compte créé ! Vérifie ton email pour confirmer.");
       } else {
-        const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+        const { error: e } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
         if (e) throw e;
         setSuccess("Email de réinitialisation envoyé !");
       }

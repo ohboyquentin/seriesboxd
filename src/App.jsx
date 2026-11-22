@@ -13,9 +13,10 @@ import { fetchFollows, fetchListLikes, listLikeKey } from "./lib/social.js";
 import { computeStats } from "./lib/stats.js";
 import { computeUnlockedBadgeIds } from "./lib/badgeRules.js";
 import { loadSavedData, persistData } from "./lib/storage.js";
-import { supabase } from "./lib/supabase.js";
+import { OPENED_FROM_RECOVERY_LINK, supabase } from "./lib/supabase.js";
 import { adaptShow, tmdbViaClaude } from "./lib/tmdb.js";
 import { AuthScreen } from "./pages/AuthScreen.jsx";
+import { NewPasswordScreen } from "./pages/NewPasswordScreen.jsx";
 import { Onboarding } from "./pages/Onboarding.jsx";
 import { SearchPage } from "./pages/SearchPage.jsx";
 import { SeriesDetailPage } from "./pages/SeriesDetailPage.jsx";
@@ -90,6 +91,8 @@ export default function SeriesBoxd() {
   const remoteOkRef = useRef(false);
   const [authUser, setAuthUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  // Écran « nouveau mot de passe » : "recovery" (arrivée par le lien de l'e-mail), "change" (depuis les paramètres) ou null
+  const [passwordScreen, setPasswordScreen] = useState(OPENED_FROM_RECOVERY_LINK ? "recovery" : null);
 
   // ─── Calcul automatique des badges ───────────────────────────────────────────
   useEffect(() => {
@@ -184,7 +187,8 @@ export default function SeriesBoxd() {
       await loadAllDataFor(uid);
     };
     init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordScreen("recovery");
       const newUid = session?.user?.id || null;
       setAuthUser(session?.user || null);
       if (newUid !== currentUidRef.current) {
@@ -450,6 +454,10 @@ export default function SeriesBoxd() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <Spinner size={32} />
     </div>
+  );
+
+  if (authUser && passwordScreen) return (
+    <NewPasswordScreen mode={passwordScreen} onDone={() => setPasswordScreen(null)} onCancel={() => setPasswordScreen(null)} />
   );
 
   if (!authUser) return (
@@ -853,7 +861,7 @@ export default function SeriesBoxd() {
             )}
           </div>
         )}
-        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
+        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onChangePassword={() => { setShowSettingsPage(false); setPasswordScreen("change"); }} onLogout={async () => { await supabase.auth.signOut(); }} />}
         {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} watchedEpisodes={watchedEpisodes} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
