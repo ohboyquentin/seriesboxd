@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://sjahjgexkjklzkqglkix.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqYWhqZ2V4a2prbHprcWdsa2l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDExOTYsImV4cCI6MjA5NjY3NzE5Nn0.h3M2zPDLklFIrMMC2aTEuhtacn1w-cW9SsuUw4e5_t8";
+// Lien « mot de passe oublié » : l'URL contient type=recovery. On le note AVANT que Supabase
+// ne lise puis efface l'URL, pour afficher l'écran « nouveau mot de passe » au démarrage.
+const OPENED_FROM_RECOVERY_LINK =
+  typeof window !== "undefined" && /type=recovery/.test(window.location.hash + window.location.search);
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: {
     persistSession: true,
@@ -1457,7 +1462,7 @@ function AuthScreen() {
         if (e) throw e;
         setSuccess("Compte créé ! Vérifie ton email pour confirmer.");
       } else {
-        const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+        const { error: e } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
         if (e) throw e;
         setSuccess("Email de réinitialisation envoyé !");
       }
@@ -1518,6 +1523,76 @@ function AuthScreen() {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── NOUVEAU MOT DE PASSE ─────────────────────────────────────────────────────
+// Affiché quand on arrive par le lien « mot de passe oublié » (mode "recovery"),
+// ou depuis les paramètres pour changer son mot de passe (mode "change").
+function NewPasswordScreen({ mode = "change", onDone, onCancel }) {
+  const [password, setPassword] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const handle = async () => {
+    setError("");
+    if (password.length < 6) { setError("Mot de passe minimum 6 caractères."); return; }
+    if (password !== confirmPw) { setError("Les deux mots de passe ne correspondent pas."); return; }
+    setLoading(true);
+    const { error: e } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (e) {
+      const msgs = {
+        "New password should be different from the old password.": "Le nouveau mot de passe doit être différent de l'ancien.",
+      };
+      setError(msgs[e.message] || e.message);
+      return;
+    }
+    setSuccess(true);
+  };
+
+  const inputStyle = { padding: "14px 16px", background: "#111", border: "1px solid #222", borderRadius: 12, color: "#fff", fontSize: 15, outline: "none" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100000, minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'DM Sans',system-ui,sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🔑</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>
+            {mode === "recovery" ? "Choisis un nouveau mot de passe" : "Changer mon mot de passe"}
+          </div>
+        </div>
+        {success ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ color:"#4ade80", fontSize:14, textAlign:"center", background:"rgba(74,222,128,.1)", padding:"12px 14px", borderRadius:10 }}>
+              Mot de passe enregistré ✓
+            </div>
+            <button onClick={onDone}
+              style={{ padding:"14px", background:ORANGE, border:"none", borderRadius:12, color:"#000", fontSize:15, fontWeight:700, cursor:"pointer" }}>
+              Continuer
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <input type="password" placeholder="Nouveau mot de passe (min. 6 caractères)" value={password} autoComplete="new-password"
+              onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key==="Enter" && handle()} style={inputStyle} />
+            <input type="password" placeholder="Confirme le mot de passe" value={confirmPw} autoComplete="new-password"
+              onChange={e => setConfirmPw(e.target.value)} onKeyDown={e => e.key==="Enter" && handle()} style={inputStyle} />
+            {error && <div style={{ color:"#f87171", fontSize:13, textAlign:"center", background:"rgba(248,113,113,.1)", padding:"10px 14px", borderRadius:10 }}>{error}</div>}
+            <button onClick={handle} disabled={loading}
+              style={{ padding:"14px", background:loading?"#222":ORANGE, border:"none", borderRadius:12, color:loading?"#555":"#000", fontSize:15, fontWeight:700, cursor:loading?"default":"pointer" }}>
+              {loading ? "..." : "Enregistrer"}
+            </button>
+            <button onClick={onCancel}
+              style={{ background:"none", border:"none", color:"#555", fontSize:13, cursor:"pointer", textAlign:"center" }}>
+              {mode === "recovery" ? "Plus tard" : "Annuler"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1618,7 +1693,7 @@ function Onboarding({ onComplete }) {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-function SettingsPage({ user, onSave, onClose, watched, authEmail, onLogout }) {
+function SettingsPage({ user, onSave, onClose, watched, authEmail, onChangePassword, onLogout }) {
   const [name,      setName]      = useState(user.name      || "");
   const [pseudo,    setPseudo]    = useState(user.pseudo     || user.name || "");
   const [bio,       setBio]       = useState(user.bio        || "");
@@ -1808,6 +1883,9 @@ function SettingsPage({ user, onSave, onClose, watched, authEmail, onLogout }) {
         <div style={{ background: "#111", borderRadius: 12, padding: "12px 16px", fontSize: 13, color: "#555", marginBottom: 12 }}>
           Connecté en tant que <span style={{ color: "#aaa" }}>{authEmail}</span>
         </div>
+        <button onClick={onChangePassword} style={{ width: "100%", padding: "13px 16px", background: "#0e0e0e", border: "1px solid #222", borderRadius: 12, color: "#ddd", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+          🔑 Changer mon mot de passe
+        </button>
         <button onClick={onLogout} style={{ width: "100%", padding: "13px 16px", background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, color: "#ef4444", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           Se déconnecter
         </button>
@@ -3339,6 +3417,8 @@ export default function SeriesBoxd() {
   const remoteOkRef = useRef(false);
   const [authUser, setAuthUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  // Écran « nouveau mot de passe » : "recovery" (arrivée par le lien de l'e-mail), "change" (depuis les paramètres) ou null
+  const [passwordScreen, setPasswordScreen] = useState(OPENED_FROM_RECOVERY_LINK ? "recovery" : null);
 
   // ─── Calcul automatique des badges ───────────────────────────────────────────
   useEffect(() => {
@@ -3843,7 +3923,8 @@ export default function SeriesBoxd() {
       await loadAllDataFor(uid);
     };
     init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordScreen("recovery");
       const newUid = session?.user?.id || null;
       setAuthUser(session?.user || null);
       if (newUid !== currentUidRef.current) {
@@ -4109,6 +4190,10 @@ export default function SeriesBoxd() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <Spinner size={32} />
     </div>
+  );
+
+  if (authUser && passwordScreen) return (
+    <NewPasswordScreen mode={passwordScreen} onDone={() => setPasswordScreen(null)} onCancel={() => setPasswordScreen(null)} />
   );
 
   if (!authUser) return (
@@ -4512,7 +4597,7 @@ export default function SeriesBoxd() {
             )}
           </div>
         )}
-        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onLogout={async () => { await supabase.auth.signOut(); }} />}
+        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onChangePassword={() => { setShowSettingsPage(false); setPasswordScreen("change"); }} onLogout={async () => { await supabase.auth.signOut(); }} />}
         {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} watchedEpisodes={watchedEpisodes} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
