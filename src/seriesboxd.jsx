@@ -26,6 +26,45 @@ const PROXY_URL = import.meta.env.VITE_PROXY_URL
     ? `http://${window.location.hostname}:3001`
     : "");
 
+// Cache localStorage (secours hors-ligne) — borné pour ne jamais saturer le stockage
+const TMDB_LS_PREFIX = "tmdb_cache:";
+const TMDB_LS_MAX_ENTRIES = 150;
+const TMDB_LS_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 jours
+let _tmdbWritesSincePrune = 0;
+
+// Supprime les entrées trop vieilles et ne garde que les plus récentes.
+// keep = 0 → vide entièrement le cache TMDB (utilisé quand le stockage est plein).
+function pruneTmdbCache(keep = TMDB_LS_MAX_ENTRIES) {
+  try {
+    const now = Date.now();
+    const entries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(TMDB_LS_PREFIX)) continue;
+      let ts = 0;
+      try { ts = JSON.parse(localStorage.getItem(k))?.ts || 0; } catch { /* entrée corrompue → ts 0 */ }
+      entries.push({ k, ts });
+    }
+    entries.sort((a, b) => b.ts - a.ts);
+    entries.forEach((e, i) => {
+      if (i >= keep || now - e.ts > TMDB_LS_MAX_AGE) localStorage.removeItem(e.k);
+    });
+  } catch { /* localStorage indisponible */ }
+}
+pruneTmdbCache();
+
+function storeTmdbCache(cacheKey, data, ts) {
+  const value = JSON.stringify({ data, ts });
+  try {
+    localStorage.setItem(TMDB_LS_PREFIX + cacheKey, value);
+  } catch {
+    // Stockage plein → on fait de la place dans le cache TMDB et on réessaie une fois
+    pruneTmdbCache(Math.floor(TMDB_LS_MAX_ENTRIES / 2));
+    try { localStorage.setItem(TMDB_LS_PREFIX + cacheKey, value); } catch { /* tant pis, c'est juste un cache */ }
+  }
+  if (++_tmdbWritesSincePrune >= 20) { _tmdbWritesSincePrune = 0; pruneTmdbCache(); }
+}
+
 // Cache mémoire (session) — vidé au refresh
 const _memCache = new Map();
 
@@ -68,15 +107,13 @@ async function tmdbViaClaude(path, params = {}) {
     _memCache.set(cacheKey, { data, ts: now });
 
     // Stocker dans localStorage comme fallback hors-ligne (max ~4MB)
-    try {
-      localStorage.setItem(`tmdb_cache:${cacheKey}`, JSON.stringify({ data, ts: now }));
-    } catch (_) { /* localStorage plein, on ignore */ }
+    storeTmdbCache(cacheKey, data, now);
 
     return data;
   } catch (err) {
     // 3. Fallback localStorage si réseau indisponible
     try {
-      const stored = localStorage.getItem(`tmdb_cache:${cacheKey}`);
+      const stored = localStorage.getItem(TMDB_LS_PREFIX + cacheKey);
       if (stored) {
         const { data, ts } = JSON.parse(stored);
         // Accepter le cache localStorage même expiré si hors-ligne
@@ -89,6 +126,32 @@ async function tmdbViaClaude(path, params = {}) {
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+// ─── Avatar : redimensionnement ───────────────────────────────────────────────
+// Un avatar est affiché en petit rond : 256×256 px en JPEG suffit (~20-40 Ko au lieu de plusieurs Mo).
+const AVATAR_SIZE = 256;
+const AVATAR_MAX_CHARS = 100_000; // au-delà (~75 Ko), un avatar déjà enregistré est réduit automatiquement
+
+function resizeImageDataUrl(src, size = AVATAR_SIZE, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Recadrage carré centré, puis réduction
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+      const out = Math.min(size, side);
+      const canvas = document.createElement("canvas");
+      canvas.width = out; canvas.height = out;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#080808"; // fond pour les PNG transparents (le JPEG n'a pas de transparence)
+      ctx.fillRect(0, 0, out, out);
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, out, out);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("Image illisible"));
+    img.src = src;
+  });
+}
 
 // Première lettre en majuscule, "?" si le nom est vide ou absent (évite un plantage)
 const initialOf = (name) => (typeof name === "string" && name.trim() ? name.trim()[0].toUpperCase() : "?");
@@ -1585,7 +1648,10 @@ function SettingsPage({ user, onSave, onClose, watched, library, authEmail, onLo
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setAvatar(ev.target.result);
+    reader.onload = async ev => {
+      try { setAvatar(await resizeImageDataUrl(ev.target.result)); }
+      catch (err) { console.warn("Avatar :", err.message); }
+    };
     reader.readAsDataURL(file);
   };
 
@@ -1766,8 +1832,14 @@ function loadLocalData(userId) {
   catch { return {}; }
 }
 function saveLocalData(data, userId) {
-  try { localStorage.setItem(getLsKey(userId), JSON.stringify(data)); }
-  catch (e) { console.warn("localStorage plein :", e.message); }
+  const value = JSON.stringify(data);
+  try { localStorage.setItem(getLsKey(userId), value); }
+  catch {
+    // Stockage plein : tes données passent avant le cache TMDB → on le vide et on réessaie
+    pruneTmdbCache(0);
+    try { localStorage.setItem(getLsKey(userId), value); }
+    catch (e) { console.warn("localStorage plein :", e.message); }
+  }
 }
 
 // Champs présents dans la copie locale (allégée). Les champs absents de cette liste
@@ -2724,53 +2796,45 @@ async function fetchFollows(userId) {
 }
 
 async function searchUsers(query) {
-  const { data } = await supabase
+  // Recherche faite côté Supabase (nom ou pseudo), sans limite au nombre d'inscrits.
+  // On retire les caractères qui ont un sens dans la syntaxe de filtre.
+  const q = query.replace(/[,()*%\\"']/g, " ").trim();
+  if (!q) return [];
+  const { data, error } = await supabase
     .from("profiles")
-    .select("id, data, updated_at")
-    .limit(50);
-  const q = query.toLowerCase();
-  return (data || [])
-    .filter(row => {
-      const u = row.data?.user || {};
-      const name   = (u.name   || "").toLowerCase();
-      const pseudo = (u.pseudo || "").toLowerCase();
-      return name.includes(q) || pseudo.includes(q);
-    })
-    .map(row => {
-      const u = row.data?.user || {};
-      return {
-        id: row.id,
-        name: u.name || "Utilisateur",
-        pseudo: u.pseudo || u.name || "user",
-        avatar: u.avatar || null,
-        bio: u.bio || "",
-        favGenres: u.favGenres || [],
-        pinnedBadgeIds: row.data?.pinnedBadgeIds || [],
-        unlockedBadgeIds: row.data?.unlockedBadgeIds || [],
-        library: row.data?.library || [],
-        activityLog: row.data?.activityLog || [],
-        extraReviews: row.data?.extraReviews || {},
-        watchedEpisodes: row.data?.watchedEpisodes || {},
-      };
-    });
+    .select("id, user:data->user, library:data->library")
+    .or(`data->user->>name.ilike.*${q}*,data->user->>pseudo.ilike.*${q}*`)
+    .limit(30);
+  if (error) { console.warn("searchUsers:", error.message); return []; }
+  return (data || []).map(row => {
+    const u = row.user || {};
+    return {
+      id: row.id,
+      name: u.name || "Utilisateur",
+      pseudo: u.pseudo || u.name || "user",
+      avatar: u.avatar || null,
+      library: row.library || [],
+    };
+  });
 }
 
 async function fetchCommunityReviews(tmdbId, excludeUserId) {
-  // Les critiques sont stockées dans le profil de chaque utilisateur (data.extraReviews),
-  // il faut donc parcourir les profils pour retrouver celles qui concernent cette série.
-  const { data, error } = await supabase.from("profiles").select("id, data").limit(200);
+  // Les critiques sont stockées dans le profil de chaque utilisateur (data.extraReviews[tmdbId]).
+  // On demande à Supabase UNIQUEMENT les critiques de cette série (filtre fait côté base),
+  // au lieu de télécharger tous les profils complets.
+  const id = String(parseInt(tmdbId, 10));
+  if (id === "NaN") return [];
+  const path = `data->extraReviews->"${id}"`;
+  let query = supabase.from("profiles").select(`id, reviews:${path}`).not(path, "is", null);
+  if (excludeUserId) query = query.neq("id", excludeUserId); // tes critiques sont gérées localement
+  const { data, error } = await query;
   if (error) {
-    // Si ceci apparaît dans la console : la policy RLS de "profiles" bloque probablement
-    // la lecture des profils des autres comptes (voir instructions SQL fournies).
     console.error("fetchCommunityReviews — erreur Supabase:", error.message, error);
     return [];
   }
-  console.log(`fetchCommunityReviews: ${data?.length || 0} profil(s) lu(s) au total pour la série ${tmdbId}`);
   const result = [];
   (data || []).forEach(row => {
-    if (row.id === excludeUserId) return; // tes propres critiques sont déjà gérées localement
-    const reviews = row.data?.extraReviews?.[tmdbId] || [];
-    reviews.forEach(r => result.push({ ...r, authorId: row.id }));
+    (Array.isArray(row.reviews) ? row.reviews : []).forEach(r => result.push({ ...r, authorId: row.id }));
   });
   return result;
 }
@@ -3056,10 +3120,10 @@ function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
       const { data } = await supabase.from("follows").select(col).eq(filterCol, userId);
       const ids = (data || []).map(r => r[col]);
       if (ids.length === 0) { setLoading(false); return; }
-      const { data: profiles } = await supabase.from("profiles").select("id,data").in("id", ids);
+      const { data: profiles } = await supabase.from("profiles").select("id, user:data->user, library:data->library").in("id", ids);
       setUsers((profiles || []).map(p => {
-        const u = p.data?.user || {};
-        return { id: p.id, name: u.name || "Utilisateur", pseudo: u.pseudo || u.name || "user", avatar: u.avatar || null, watched: (p.data?.library || []).filter(s => s.watched).length };
+        const u = p.user || {};
+        return { id: p.id, name: u.name || "Utilisateur", pseudo: u.pseudo || u.name || "user", avatar: u.avatar || null, watched: (p.library || []).filter(s => s.watched).length };
       }));
       if (currentUserId) {
         const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", ids);
@@ -3739,6 +3803,13 @@ export default function SeriesBoxd() {
     remoteOkRef.current = remoteOk;
     setOnboarded(saved.onboarded || false);
     setUser(saved.user || { name: "Alex", genres: [], platforms: [] });
+    // Avatar trop lourd enregistré avant le redimensionnement → on le réduit une fois
+    const oldAvatar = saved.user?.avatar;
+    if (typeof oldAvatar === "string" && oldAvatar.length > AVATAR_MAX_CHARS) {
+      resizeImageDataUrl(oldAvatar)
+        .then(small => setUser(prev => prev?.avatar === oldAvatar ? { ...prev, avatar: small } : prev))
+        .catch(e => console.warn("Réduction avatar :", e.message));
+    }
     setLibrary(saved.library || []);
     setExtraReviews(saved.extraReviews || {});
     setWatchHistory(saved.watchHistory || {});
@@ -3815,7 +3886,11 @@ export default function SeriesBoxd() {
     setFriendsActivityLoading(true);
     (async () => {
       try {
-        const { data: profiles } = await supabase.from("profiles").select("id, data").in("id", followingIds);
+        // Uniquement les parties du profil utiles au fil (pas les épisodes, critiques, etc.)
+        const { data: rows } = await supabase.from("profiles")
+          .select("id, user:data->user, library:data->library, activityLog:data->activityLog, favShows:data->favShows")
+          .in("id", followingIds);
+        const profiles = (rows || []).map(r => ({ id: r.id, data: { user: r.user, library: r.library, activityLog: r.activityLog, favShows: r.favShows } }));
         const acts = [];
         const libs = [];
         (profiles || []).forEach(p => {
