@@ -1,44 +1,21 @@
+// Proxy TMDB pour le développement local (en production, ce sont les fonctions /api de Vercel).
+// La clé est lue depuis le fichier .env (voir .env.example) — ne jamais l'écrire ici.
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
-import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const TMDB_API_KEY = process.env.TMDB_API_KEY || "7b93f0fa13f72fcb119edf78b8d384b4";
+const TMDB_API_KEY = process.env.TMDB_KEY || process.env.TMDB_API_KEY;
 const IS_PROD = process.env.NODE_ENV === "production";
 const ALLOWED_ORIGINS = IS_PROD ? (process.env.ALLOWED_ORIGIN || "*") : "*";
 
-// Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+if (!TMDB_API_KEY) {
+  console.error("❌ Clé TMDB manquante : ajoute TMDB_KEY=... dans le fichier .env (voir .env.example).");
+  process.exit(1);
+}
 
 app.use(cors({ origin: ALLOWED_ORIGINS }));
-app.use(express.json({ limit: "5mb" }));
-
-// ─── Routes données ───────────────────────────────────────────────────────────
-
-app.get("/data", async (req, res) => {
-  const userId = req.query.userId || "default";
-  const { data, error } = await supabase
-    .from("user_data")
-    .select("data")
-    .eq("user_id", userId)
-    .single();
-  if (error && error.code !== "PGRST116") return res.status(500).json({ error: error.message });
-  res.json(data?.data || {});
-});
-
-app.post("/data", async (req, res) => {
-  const userId = req.query.userId || "default";
-  const { error } = await supabase
-    .from("user_data")
-    .upsert({ user_id: userId, data: req.body, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ ok: true });
-});
 
 // ─── Route proxy TMDB ─────────────────────────────────────────────────────────
 
@@ -50,8 +27,8 @@ app.get("/tmdb/*path", async (req, res) => {
     const url = `https://api.themoviedb.org/3/${path}?${qs}`;
     const response = await fetch(url);
     const data = await response.json();
-    res.json(data);
-  } catch (err) {
+    res.status(response.status).json(data);
+  } catch {
     res.status(500).json({ error: "Erreur lors de la requête TMDB" });
   }
 });

@@ -90,6 +90,9 @@ async function tmdbViaClaude(path, params = {}) {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
+// Première lettre en majuscule, "?" si le nom est vide ou absent (évite un plantage)
+const initialOf = (name) => (typeof name === "string" && name.trim() ? name.trim()[0].toUpperCase() : "?");
+
 const posterUrl   = (path, size = "w185") => path ? `${IMG}/${size}${path}` : null;
 const backdropUrl = (path) => path ? `${IMG}/w780${path}` : null;
 
@@ -753,7 +756,7 @@ function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched
           tmdbViaClaude(`/tv/${series.tmdbId}/watch/providers`),
         ]);
         const cast = (credits.cast || []).slice(0, 6).map(c => ({
-          name: c.name, role: c.character, avatar: c.name[0],
+          name: c.name, role: c.character, avatar: initialOf(c.name),
           photo: c.profile_path ? `${IMG}/w92${c.profile_path}` : null,
         }));
         const fr = prov.results?.FR;
@@ -1586,8 +1589,10 @@ function SettingsPage({ user, onSave, onClose, watched, library, authEmail, onLo
     reader.readAsDataURL(file);
   };
 
+  const canSave = name.trim().length >= 2;
   const handleSave = () => {
-    onSave({ ...user, name, pseudo, bio, location, website, avatar, favGenres: genres, favShows });
+    if (!canSave) return;
+    onSave({ ...user, name: name.trim(), pseudo, bio, location, website, avatar, favGenres: genres, favShows });
     onClose();
   };
 
@@ -1604,7 +1609,7 @@ function SettingsPage({ user, onSave, onClose, watched, library, authEmail, onLo
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Modifier le profil</div>
         </div>
-        <button onClick={handleSave} style={{ background: ORANGE, border: "none", borderRadius: 20, padding: "8px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Enregistrer</button>
+        <button onClick={handleSave} disabled={!canSave} title={canSave ? "" : "Le nom doit contenir au moins 2 caractères"} style={{ background: canSave ? ORANGE : "#222", border: "none", borderRadius: 20, padding: "8px 20px", color: canSave ? "#fff" : "#555", fontSize: 13, fontWeight: 700, cursor: canSave ? "pointer" : "default" }}>Enregistrer</button>
       </div>
 
       <div style={{ padding: "28px 20px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1765,48 +1770,113 @@ function saveLocalData(data, userId) {
   catch (e) { console.warn("localStorage plein :", e.message); }
 }
 
-async function loadSavedData(userId) {
-  const local = loadLocalData(userId);
-  // Vérifie aussi l'ancienne clé sans userId (migration)
-  const legacyLocal = loadLocalData(null);
-  if (!userId) return local;
-  try {
-    const { data, error } = await supabase
-      .from("profiles").select("data").eq("id", userId).single();
-    if (!error && data?.data) {
-      const remote = data.data;
-      // Prend les données les plus complètes : plus de séries = meilleure source
-      const remoteLib = (remote.library || []).length;
-      const localLib  = (local.library  || []).length;
-      const legacyLib = (legacyLocal.library || []).length;
+// Champs présents dans la copie locale (allégée). Les champs absents de cette liste
+// (activityLog, watchedEpisodes, extraReviews…) n'existent QUE dans Supabase :
+// la copie locale ne doit donc jamais remplacer les données Supabase en bloc.
+const LOCAL_FIELDS = [
+  "onboarded", "user", "library", "watchHistory", "lists", "tags",
+  "pinnedBadgeIds", "unlockedBadgeIds", "rewatchCounts", "posterClicks", "watchlistPeak",
+];
 
-      let best = remote;
-      if (localLib > remoteLib) best = local;
-      if (legacyLib > Math.max(remoteLib, localLib)) best = legacyLocal;
-
-      // S'assure qu'onboarded est true si l'une des sources le dit
-      if (local.onboarded || remote.onboarded || legacyLocal.onboarded) {
-        best = { ...best, onboarded: true };
-      }
-
-      // Resauvegarde la meilleure version en Supabase si différente
-      saveLocalData(best, userId);
-      if (best !== remote) {
-        try {
-          await supabase.from("profiles").upsert({ id: userId, data: best, updated_at: new Date().toISOString() });
-        } catch(e) { console.warn("Supabase resync:", e); }
-      }
-      return best;
-    }
-  } catch (e) { console.warn("Supabase load:", e.message); }
-  // Pas de données Supabase — utilise local ou legacy
-  if (legacyLocal.library?.length > (local.library?.length || 0)) return legacyLocal;
-  return local;
+// Fusionne une copie locale plus récente (modifs pas encore envoyées) par-dessus
+// les données complètes de Supabase, sans toucher aux champs « lourds ».
+function mergeLocalIntoRemote(remote, local) {
+  const merged = { ...remote };
+  LOCAL_FIELDS.forEach(f => { if (f !== "library" && local[f] !== undefined) merged[f] = local[f]; });
+  if (Array.isArray(local.library)) {
+    // Les séries locales sont allégées : on garde les infos complètes de Supabase
+    // et on applique par-dessus l'état local (vu, note, watchlist…).
+    const remoteById = new Map((remote.library || []).map(s => [s.tmdbId, s]));
+    merged.library = local.library.map(s => ({ ...(remoteById.get(s.tmdbId) || {}), ...s }));
+  }
+  return merged;
 }
 
-async function persistData(data, userId) {
+// Renvoie { data, remoteOk }.
+// remoteOk = false → Supabase n'a pas pu être lu : l'app ne doit RIEN y écrire
+// pendant cette session, sinon elle écraserait les données complètes avec la copie allégée.
+async function loadSavedData(userId) {
+  const local = loadLocalData(userId);
+  // Ancienne clé sans userId (migration des toutes premières versions)
+  const legacyLocal = loadLocalData(null);
+  const bestLocal = (legacyLocal.library?.length || 0) > (local.library?.length || 0) ? legacyLocal : local;
+  if (!userId) return { data: local, remoteOk: false };
+
+  let remote;
+  try {
+    const { data, error } = await supabase
+      .from("profiles").select("data").eq("id", userId).maybeSingle();
+    if (error) throw error;
+    remote = data?.data || null;
+  } catch (e) {
+    console.warn("Supabase load — mode hors-ligne pour cette session :", e.message);
+    return { data: bestLocal, remoteOk: false };
+  }
+
+  // Aucun profil en ligne (nouveau compte) → on part des données locales
+  if (!remote) return { data: bestLocal, remoteOk: true };
+
+  // Supabase est la référence. La copie locale ne gagne que si elle contient
+  // des modifications plus récentes qui n'ont pas pu être envoyées.
+  let result = remote;
+  if (local._dirty && (local._savedAt || 0) > (remote._savedAt || 0)) {
+    result = mergeLocalIntoRemote(remote, local);
+  }
+  if (local.onboarded || remote.onboarded) result = { ...result, onboarded: true };
+  return { data: result, remoteOk: true };
+}
+
+// ── Envoi vers Supabase : regroupé (debounce) et jamais deux envois en parallèle ──
+const REMOTE_SAVE_DELAY = 1500;
+const REMOTE_RETRY_DELAY = 30000;
+let _pendingSave = null;   // { data, userId } — dernière version à envoyer
+let _saveTimer = null;
+let _saveInFlight = false;
+
+function scheduleRemoteSave(delay = REMOTE_SAVE_DELAY) {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(flushRemoteSave, delay);
+}
+
+async function flushRemoteSave() {
+  clearTimeout(_saveTimer);
+  if (_saveInFlight || !_pendingSave) return;
+  const { data, userId } = _pendingSave;
+  _pendingSave = null;
+  _saveInFlight = true;
+  let ok = false;
+  try {
+    const { error } = await supabase.from("profiles")
+      .upsert({ id: userId, data, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    ok = true;
+    // La copie locale correspond à ce qui est en ligne → plus rien en attente
+    const local = loadLocalData(userId);
+    if (local._savedAt === data._savedAt) saveLocalData({ ...local, _dirty: false }, userId);
+  } catch (e) {
+    console.warn("Supabase save — nouvel essai plus tard :", e.message);
+    if (!_pendingSave) _pendingSave = { data, userId }; // une version plus récente a priorité
+  } finally {
+    _saveInFlight = false;
+    if (_pendingSave) scheduleRemoteSave(ok ? REMOTE_SAVE_DELAY : REMOTE_RETRY_DELAY);
+  }
+}
+
+if (typeof window !== "undefined") {
+  // Réseau revenu → on retente tout de suite
+  window.addEventListener("online", () => { flushRemoteSave(); });
+  // App mise en arrière-plan / fermée → on envoie sans attendre le délai
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushRemoteSave();
+  });
+}
+
+function persistData(data, userId, remoteOk) {
+  const savedAt = Date.now();
   // localStorage : version allégée (sans activityLog ni watchedEpisodes qui sont volumineux)
   const localData = {
+    _savedAt: savedAt,
+    _dirty: true, // repassera à false une fois l'envoi Supabase confirmé
     onboarded: data.onboarded,
     user: data.user,
     library: (data.library || []).map(s => ({
@@ -1824,12 +1894,11 @@ async function persistData(data, userId) {
     posterClicks: data.posterClicks,
     watchlistPeak: data.watchlistPeak,
   };
-  try { saveLocalData(localData, userId); } catch(e) {}
-  // Supabase : données complètes
-  if (!userId) return;
-  try {
-    await supabase.from("profiles").upsert({ id: userId, data, updated_at: new Date().toISOString() });
-  } catch (e) { console.warn("Supabase save:", e.message); }
+  saveLocalData(localData, userId);
+  // Supabase : données complètes — seulement si on a pu lire Supabase au chargement
+  if (!userId || !remoteOk) return;
+  _pendingSave = { data: { ...data, _savedAt: savedAt }, userId };
+  scheduleRemoteSave();
 }
 
 
@@ -3208,6 +3277,8 @@ export default function SeriesBoxd() {
   const [diaryTab, setDiaryTab] = useState("mine");
   const [watchedEpisodes, setWatchedEpisodes] = useState({}); // { tmdbId: { "S1E3": true } }
   const [dataLoaded, setDataLoaded] = useState(false);
+  // false si Supabase n'a pas pu être lu au chargement → aucune écriture en ligne cette session
+  const remoteOkRef = useRef(false);
   const [authUser, setAuthUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
@@ -3664,7 +3735,8 @@ export default function SeriesBoxd() {
     setConfirm(null);
     setTab("home");
 
-    const saved = await loadSavedData(uid);
+    const { data: saved, remoteOk } = await loadSavedData(uid);
+    remoteOkRef.current = remoteOk;
     setOnboarded(saved.onboarded || false);
     setUser(saved.user || { name: "Alex", genres: [], platforms: [] });
     setLibrary(saved.library || []);
@@ -3735,7 +3807,7 @@ export default function SeriesBoxd() {
   // ── Sauvegarde automatique dans localStorage ───────────────────────────────
   useEffect(() => {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
-    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUser?.id);
+    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUser?.id, remoteOkRef.current);
   }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded]);
 
   useEffect(() => {
@@ -3845,7 +3917,7 @@ export default function SeriesBoxd() {
   const handleAddReview = (sid, review) => {
     const cur = extraReviews[sid] || [];
     const series = library.find(s => s.tmdbId === sid);
-    setExtraReviews(p => ({ ...p, [sid]: [...cur, { id: Date.now(), user: user.name, avatar: user.name[0].toUpperCase(), rating: review.rating, text: review.text, likes: 0, liked: false, date: "Aujourd'hui" }] }));
+    setExtraReviews(p => ({ ...p, [sid]: [...cur, { id: Date.now(), user: user.name, avatar: initialOf(user.name), rating: review.rating, text: review.text, likes: 0, liked: false, date: "Aujourd'hui" }] }));
     if (series) addActivity("review", `Tu as review ${series.title}`);
   };
   const handleSeriesMetaLoaded = (tmdbId, meta) => {
@@ -3881,7 +3953,7 @@ export default function SeriesBoxd() {
     const cur = extraReviews[sid] || [];
     const review = cur.find(r => r.id === rid);
     const series = library.find(s => s.tmdbId === sid);
-    const comment = { id: Date.now() + Math.random(), user: user.name, avatar: user.name[0].toUpperCase(), text: text.trim(), ts: new Date().toISOString() };
+    const comment = { id: Date.now() + Math.random(), user: user.name, avatar: initialOf(user.name), text: text.trim(), ts: new Date().toISOString() };
     setExtraReviews(p => ({ ...p, [sid]: cur.map(r => r.id===rid ? { ...r, comments: [...(r.comments||[]), comment] } : r) }));
     addActivity("comment", `Tu as commenté la critique de ${review?.user || "quelqu'un"} sur ${series?.title || "une série"}`);
   };
@@ -4148,7 +4220,7 @@ export default function SeriesBoxd() {
                 <div style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #c026d3, #f0abfc)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 30, color: "#fff", margin: "0 auto 14px", overflow: "hidden", border: "3px solid #1a1a1a" }}>
                   {user.avatar
                     ? <img src={user.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    : <span>{user.name[0].toUpperCase()}</span>
+                    : <span>{initialOf(user.name)}</span>
                   }
                 </div>
                 {/* Nom complet */}
