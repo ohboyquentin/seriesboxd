@@ -8,8 +8,10 @@ export function GenreDonut({ genreData }) {
   const size = 140, cx = 70, cy = 70, r = 52, ir = 32;
   const total = genreData.reduce((a, [, n]) => a + n, 0);
   if (!total) return <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: 20 }}>Pas encore de données</div>;
-  let angle = -Math.PI / 2;
+  // Angle de départ de chaque part = début (-90°) + somme des parts précédentes
   const slices = genreData.map(([genre, count], i) => {
+    const before = genreData.slice(0, i).reduce((a, [, n]) => a + n, 0);
+    const angle = -Math.PI / 2 + (before / total) * 2 * Math.PI;
     const sweep = (count / total) * 2 * Math.PI;
     const mk = (rr, a) => [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
     const [x1,y1]=mk(r,angle),[x2,y2]=mk(r,angle+sweep);
@@ -17,7 +19,6 @@ export function GenreDonut({ genreData }) {
     const large = sweep > Math.PI ? 1 : 0;
     const path = `M${ix1},${iy1} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${ix2},${iy2} A${ir},${ir} 0 ${large} 0 ${ix1},${iy1}Z`;
     const mid = angle + sweep / 2;
-    angle += sweep;
     return { genre, count, path, color: PALETTE[i] || "#555", mid };
   });
   const hov = hovered !== null ? slices[hovered] : null;

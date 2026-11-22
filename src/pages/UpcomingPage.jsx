@@ -53,6 +53,8 @@ export function UpcomingPage({ library, watchedEpisodes = {} }) {
       setItems(results);
       setLoading(false);
     })();
+    // Volontaire : on n'interroge TMDB à nouveau que si le nombre de séries change (évite des dizaines de requêtes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [library.length]);
 
   const formatDays = (days) => {

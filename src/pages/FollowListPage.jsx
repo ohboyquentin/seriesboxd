@@ -10,13 +10,16 @@ export function FollowListPage({ title, userId, type, currentUserId, onViewProfi
   const [followingMap, setFollowingMap] = useState({});
 
   useEffect(() => {
+    let cancelled = false; // passe à true si l'écran change avant la réponse
     (async () => {
       const col = type === "followers" ? "follower_id" : "following_id";
       const filterCol = type === "followers" ? "following_id" : "follower_id";
       const { data } = await supabase.from("follows").select(col).eq(filterCol, userId);
       const ids = (data || []).map(r => r[col]);
+      if (cancelled) return;
       if (ids.length === 0) { setLoading(false); return; }
       const { data: profiles } = await supabase.from("profiles").select("id, user:data->user, library:data->library").in("id", ids);
+      if (cancelled) return;
       setUsers((profiles || []).map(p => {
         const u = p.user || {};
         return { id: p.id, name: u.name || "Utilisateur", pseudo: u.pseudo || u.name || "user", avatar: u.avatar || null, watched: (p.library || []).filter(s => s.watched).length };
@@ -25,11 +28,13 @@ export function FollowListPage({ title, userId, type, currentUserId, onViewProfi
         const { data: myF } = await supabase.from("follows").select("following_id").eq("follower_id", currentUserId).in("following_id", ids);
         const map = {};
         (myF || []).forEach(r => { map[r.following_id] = true; });
+        if (cancelled) return;
         setFollowingMap(map);
       }
       setLoading(false);
     })();
-  }, [userId, type]);
+    return () => { cancelled = true; };
+  }, [userId, type, currentUserId]);
 
   const toggleFollow = async (targetId) => {
     if (!currentUserId) return;
