@@ -8,6 +8,7 @@ import { fetchFollows, fetchUserProfile } from "../lib/social.js";
 import { computeCompatibility } from "../lib/stats.js";
 import { supabase } from "../lib/supabase.js";
 import { scrollTopOnMount } from "../lib/dom.js";
+import { activityText } from "../lib/activity.js";
 
 // ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
 export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], listLikeCounts = {}, likedListKeys = new Set(), onToggleListLike, onRefreshListLikes }) {
@@ -203,7 +204,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
             {recentActivity.map((entry, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#0e0e0e", borderRadius: 12, border: "1px solid #181818" }}>
                 <div style={{ width: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{ICONS[entry.type] || ic("◉")}</div>
-                <div style={{ flex: 1, color: "#ccc", fontSize: 13, lineHeight: 1.4 }}>{entry.label}</div>
+                <div style={{ flex: 1, color: "#ccc", fontSize: 13, lineHeight: 1.4 }}>{activityText(entry, "profile")}</div>
                 <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(entry.ts)}</div>
               </div>
             ))}
