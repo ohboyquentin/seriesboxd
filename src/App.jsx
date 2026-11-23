@@ -480,7 +480,7 @@ export default function SeriesBoxd() {
 
   if (!onboarded) return (
     <div style={{ height: "100vh", background: "#080808", display: "flex", justifyContent: "center", fontFamily: "'DM Sans',system-ui,sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{display:none}input::placeholder{color:#444}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{display:none}input::placeholder{color:#444}`}</style>
       <Onboarding onComplete={d => { setUser({ ...d, joinDate: new Date().toISOString() }); setOnboarded(true); }} />
     </div>
   );
@@ -488,7 +488,6 @@ export default function SeriesBoxd() {
   return (
     <div style={{ minHeight: "100vh", background: "#080808", display: "flex", justifyContent: "center", fontFamily: "'DM Sans',system-ui,sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
         @keyframes slideInRight{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
         @keyframes slideInUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
         @keyframes spin{to{transform:rotate(360deg)}}

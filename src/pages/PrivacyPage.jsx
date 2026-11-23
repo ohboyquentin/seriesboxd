@@ -56,7 +56,6 @@ export function PrivacyPage({ onClose }) {
             <li style={li}><b style={{ color: "#ddd" }}>Supabase</b> : comptes et base de données.</li>
             <li style={li}><b style={{ color: "#ddd" }}>Vercel</b> : hébergement de l'app.</li>
             <li style={li}><b style={{ color: "#ddd" }}>TMDB</b> (The Movie Database) : informations et affiches des séries. Les affiches sont chargées directement depuis TMDB, qui reçoit donc ton adresse IP.</li>
-            <li style={li}><b style={{ color: "#ddd" }}>Google Fonts</b> : polices d'écriture, chargées depuis les serveurs de Google, qui reçoit aussi ton adresse IP.</li>
           </ul>
           <p style={{ margin: "8px 0 0" }}>Ces services peuvent conserver des journaux techniques (adresse IP, date de connexion) selon leurs propres règles.</p>
         </Section>
