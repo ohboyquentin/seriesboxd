@@ -66,7 +66,8 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
 
   const watched = (profile.library || []).filter(s => s.watched);
   const rated   = watched.filter(s => s.userRating);
-  const totalEps = Object.values(profile.watchedEpisodes || {}).reduce((a, eps) => a + Object.values(eps).filter(Boolean).length, 0);
+  // Vitrine publique : total déjà calculé ; ancien profil complet : on le calcule
+  const totalEps = profile.episodesCount ?? Object.values(profile.watchedEpisodes || {}).reduce((a, eps) => a + Object.values(eps).filter(Boolean).length, 0);
   const recentActivity = (profile.activityLog || []).slice(0, 8);
   const favShows = profile.favShows?.length ? profile.favShows : watched.slice(0, 4);
 
