@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { lazyPage } from "./components/lazyPage.jsx";
+import { useBackButton } from "./hooks/useBackButton.js";
 import { HexBadge } from "./components/HexBadge.jsx";
 import { ContinueWatchingSection, HomeSection, PopularWithFriends } from "./components/HomeSections.jsx";
 import { GenreDonut, RatingBars } from "./components/charts.jsx";
@@ -460,6 +461,31 @@ export default function SeriesBoxd() {
     { id: "search",  label: "Chercher" },
     { id: "profile", label: "Profil" },
   ];
+
+  // ── Bouton retour / geste « glisser pour revenir » ──────────────────────────
+  // Chaque écran ou fenêtre ouvert(e) a son entrée dans l'historique du navigateur :
+  // « retour » ferme le dernier ouvert au lieu de quitter l'app.
+  useBackButton([
+    tab !== "home"    && { key: "tab",        close: () => setTab("home") },
+    seeAllPage        && { key: "seeAll",     close: () => setSeeAllPage(null) },
+    showWatchlistPage && { key: "watchlist",  close: () => setShowWatchlistPage(false) },
+    showTVShowsPage   && { key: "tvshows",    close: () => setShowTVShowsPage(false) },
+    showUpcomingPage  && { key: "upcoming",   close: () => setShowUpcomingPage(false) },
+    showListsPage     && { key: "lists",      close: () => setShowListsPage(false) },
+    showBadgesPage    && { key: "badges",     close: () => setShowBadgesPage(false) },
+    showReviewsPage   && { key: "reviews",    close: () => setShowReviewsPage(false) },
+    showTagsPage      && { key: "tags",       close: () => setShowTagsPage(false) },
+    showFollowersPage && { key: "followers",  close: () => setShowFollowersPage(false) },
+    showFollowingPage && { key: "following",  close: () => setShowFollowingPage(false) },
+    viewingList       && { key: "list",       close: () => setViewingList(null) },
+    showSettingsPage  && { key: "settings",   close: () => setShowSettingsPage(false) },
+    viewingProfile    && { key: "profile",    close: () => setViewingProfile(null) },
+    detailSeries      && { key: "detail",     close: () => setDetailSeries(null) },
+    showCreateList    && { key: "createList", close: () => setShowCreateList(false) },
+    epPopup           && { key: "episode",    close: () => setEpPopup(null) },
+    confirm           && { key: "confirm",    close: () => setConfirm(null) },
+    showPrivacy       && { key: "privacy",    close: () => setShowPrivacy(false) },
+  ].filter(Boolean));
 
   if (!authReady || (authUser && !dataLoaded)) return (
     <div style={{ height:"100vh", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
