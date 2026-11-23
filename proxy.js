@@ -1,7 +1,6 @@
 // Proxy TMDB pour le développement local (en production, ce sont les fonctions /api de Vercel).
 // La clé est lue depuis le fichier .env (voir .env.example) — ne jamais l'écrire ici.
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
 
 const app = express();
