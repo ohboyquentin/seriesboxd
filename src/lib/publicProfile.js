@@ -5,7 +5,7 @@
 // Phase A (false) : on écrit encore le profil complet dans profiles.data, pour que l'ancienne
 // version de l'app (qui lit profiles.data) continue de fonctionner pendant la mise en ligne.
 // Phase B (true) : une fois cette version en ligne, profiles.data ne contient plus que la vitrine.
-export const PUBLIC_VITRINE_ENABLED = false;
+export const PUBLIC_VITRINE_ENABLED = true;
 
 const PUBLIC_USER_FIELDS = ["name", "pseudo", "avatar", "bio", "favGenres", "favShows"];
 const PUBLIC_ACTIVITY_LIMIT = 30;
