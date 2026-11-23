@@ -102,6 +102,29 @@ let _pendingSave = null;   // { data, userId } — dernière version à envoyer
 let _saveTimer = null;
 let _saveInFlight = false;
 
+// Comptes en cours de suppression : plus aucune sauvegarde (ni en ligne ni sur l'appareil)
+const _blockedUsers = new Set();
+
+// Appelé juste avant la suppression du compte : annule les envois en attente
+export function stopSyncFor(userId) {
+  _blockedUsers.add(userId);
+  if (_pendingSave?.userId === userId) _pendingSave = null;
+  clearTimeout(_saveTimer);
+}
+
+// Suppression échouée : on reprend les sauvegardes normalement
+export function resumeSyncFor(userId) {
+  _blockedUsers.delete(userId);
+}
+
+// Efface la copie gardée sur l'appareil (compte + ancienne clé sans identifiant)
+export function clearLocalData(userId) {
+  try {
+    localStorage.removeItem(getLsKey(userId));
+    localStorage.removeItem(getLsKey(null));
+  } catch { /* stockage indisponible */ }
+}
+
 function scheduleRemoteSave(delay = REMOTE_SAVE_DELAY) {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(flushRemoteSave, delay);
@@ -112,6 +135,7 @@ async function flushRemoteSave() {
   if (_saveInFlight || !_pendingSave) return;
   const { data, userId } = _pendingSave;
   _pendingSave = null;
+  if (_blockedUsers.has(userId)) return;
   _saveInFlight = true;
   let ok = false;
   try {
@@ -147,6 +171,7 @@ if (typeof window !== "undefined") {
 }
 
 export function persistData(data, userId, remoteOk) {
+  if (userId && _blockedUsers.has(userId)) return;
   const savedAt = Date.now();
   // localStorage : version allégée (sans activityLog ni watchedEpisodes qui sont volumineux)
   const localData = {

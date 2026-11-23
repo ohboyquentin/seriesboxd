@@ -1,11 +1,21 @@
 import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ALL_GENRES } from "../constants/genres.js";
 import { ORANGE } from "../constants/theme.js";
 import { resizeImageDataUrl } from "../lib/avatar.js";
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-export function SettingsPage({ user, onSave, onClose, watched, authEmail, onChangePassword, onLogout }) {
+export function SettingsPage({ user, onSave, onClose, watched, authEmail, onChangePassword, onLogout, onExportData, onDeleteAccount, onOpenPrivacy }) {
+  const [showDelete, setShowDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const handleExport = async () => {
+    setExporting(true); setExportError("");
+    try { await onExportData(); }
+    catch (e) { console.error("Export :", e); setExportError("L'export a échoué. Réessaie."); }
+    setExporting(false);
+  };
   const [name,      setName]      = useState(user.name      || "");
   const [pseudo,    setPseudo]    = useState(user.pseudo     || user.name || "");
   const [bio,       setBio]       = useState(user.bio        || "");
@@ -201,7 +211,68 @@ export function SettingsPage({ user, onSave, onClose, watched, authEmail, onChan
         <button onClick={onLogout} style={{ width: "100%", padding: "13px 16px", background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, color: "#ef4444", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
           Se déconnecter
         </button>
+
+        {/* Données personnelles (RGPD) */}
+        <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: ".08em", margin: "28px 0 12px" }}>Mes données</div>
+        <button onClick={handleExport} disabled={exporting} style={{ width: "100%", padding: "13px 16px", background: "#0e0e0e", border: "1px solid #222", borderRadius: 12, color: "#ddd", fontSize: 14, fontWeight: 600, cursor: exporting ? "default" : "pointer", marginBottom: 10 }}>
+          {exporting ? "Préparation du fichier…" : "⬇️ Télécharger mes données"}
+        </button>
+        {exportError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 10 }}>{exportError}</div>}
+        <button onClick={onOpenPrivacy} style={{ width: "100%", padding: "13px 16px", background: "#0e0e0e", border: "1px solid #222", borderRadius: 12, color: "#ddd", fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+          🔒 Confidentialité
+        </button>
+        <button onClick={() => setShowDelete(true)} style={{ width: "100%", padding: "13px 16px", background: "transparent", border: "1px solid rgba(239,68,68,.35)", borderRadius: 12, color: "#ef4444", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+          Supprimer mon compte
+        </button>
       </div>
+      {showDelete && <DeleteAccountDialog onCancel={() => setShowDelete(false)} onConfirm={onDeleteAccount} />}
     </div>
+  );
+}
+
+// ─── Confirmation de suppression du compte ────────────────────────────────────
+const CONFIRM_WORD = "SUPPRIMER";
+
+function DeleteAccountDialog({ onCancel, onConfirm }) {
+  const [typed, setTyped] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const canDelete = typed.trim().toUpperCase() === CONFIRM_WORD && !deleting;
+
+  const handle = async () => {
+    if (!canDelete) return;
+    setDeleting(true); setError("");
+    try {
+      await onConfirm();
+    } catch (e) {
+      console.error("Suppression du compte :", e);
+      setError("La suppression a échoué, ton compte n'a pas été supprimé. Réessaie plus tard.");
+      setDeleting(false);
+    }
+  };
+
+  // Portail : affiché directement dans <body>, au-dessus de la barre de navigation
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 100002, background: "rgba(0,0,0,.8)", display: "flex", alignItems: "flex-end", justifyContent: "center", fontFamily: "'DM Sans',system-ui,sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 440, background: "#111", borderRadius: "20px 20px 0 0", padding: "24px 20px 36px", border: "1px solid #222" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 10 }}>Supprimer ton compte ?</div>
+        <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6, marginBottom: 14 }}>
+          Ton compte et <b style={{ color: "#ddd" }}>toutes tes données</b> seront supprimés définitivement : profil, séries,
+          épisodes, notes, listes, badges, critiques, commentaires, « j'aime » et abonnements.
+          <b style={{ color: "#f87171" }}> C'est irréversible.</b> Pense à télécharger tes données avant si tu veux les garder.
+        </div>
+        <div style={{ fontSize: 12, color: "#777", marginBottom: 8 }}>Pour confirmer, tape <b style={{ color: "#ddd" }}>{CONFIRM_WORD}</b> :</div>
+        <input value={typed} onChange={e => setTyped(e.target.value)} placeholder={CONFIRM_WORD} autoCapitalize="characters" autoComplete="off"
+          style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: 10, color: "#fff", fontSize: 15, outline: "none", marginBottom: 14 }} />
+        {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} disabled={deleting} style={{ flex: 1, padding: "13px", borderRadius: 12, background: "#1a1a1a", border: "1px solid #2a2a2a", color: "#aaa", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
+          <button onClick={handle} disabled={!canDelete} style={{ flex: 1, padding: "13px", borderRadius: 12, background: canDelete ? "#dc2626" : "#2a1212", border: "none", color: canDelete ? "#fff" : "#7a4040", fontSize: 14, fontWeight: 700, cursor: canDelete ? "pointer" : "default" }}>
+            {deleting ? "Suppression…" : "Supprimer"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

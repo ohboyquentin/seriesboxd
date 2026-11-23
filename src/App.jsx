@@ -13,6 +13,7 @@ import { fetchFollows, fetchListLikes, listLikeKey } from "./lib/social.js";
 import { computeStats } from "./lib/stats.js";
 import { computeUnlockedBadgeIds } from "./lib/badgeRules.js";
 import { deleteReview, fetchUserReviews, groupReviewsBySeries } from "./lib/reviews.js";
+import { deleteMyAccount, downloadJson, exportMyData } from "./lib/account.js";
 import { loadSavedData, persistData } from "./lib/storage.js";
 import { OPENED_FROM_RECOVERY_LINK, supabase } from "./lib/supabase.js";
 import { adaptShow, tmdbViaClaude } from "./lib/tmdb.js";
@@ -30,6 +31,7 @@ const PublicProfilePage = lazyPage(() => import("./pages/PublicProfilePage.jsx")
 const ReviewsPage = lazyPage(() => import("./pages/ReviewsPage.jsx"), "ReviewsPage");
 const SeeAllPage = lazyPage(() => import("./pages/SeeAllPage.jsx"), "SeeAllPage");
 const SettingsPage = lazyPage(() => import("./pages/SettingsPage.jsx"), "SettingsPage");
+const PrivacyPage = lazyPage(() => import("./pages/PrivacyPage.jsx"), "PrivacyPage");
 const TVShowsPage = lazyPage(() => import("./pages/TVShowsPage.jsx"), "TVShowsPage");
 const TagsPage = lazyPage(() => import("./pages/TagsPage.jsx"), "TagsPage");
 const UpcomingPage = lazyPage(() => import("./pages/UpcomingPage.jsx"), "UpcomingPage");
@@ -98,6 +100,8 @@ export default function SeriesBoxd() {
   const [authReady, setAuthReady] = useState(false);
   // Écran « nouveau mot de passe » : "recovery" (arrivée par le lien de l'e-mail), "change" (depuis les paramètres) ou null
   const [passwordScreen, setPasswordScreen] = useState(OPENED_FROM_RECOVERY_LINK ? "recovery" : null);
+  const [showPrivacy, setShowPrivacy] = useState(false);          // page « Confidentialité »
+  const [accountDeleted, setAccountDeleted] = useState(false);    // message après suppression du compte
 
   // ─── Calcul automatique des badges ───────────────────────────────────────────
   useEffect(() => {
@@ -469,7 +473,8 @@ export default function SeriesBoxd() {
 
   if (!authUser) return (
     <div style={{ position: "fixed", inset: 0, zIndex: 99999 }}>
-      <AuthScreen />
+      <AuthScreen onOpenPrivacy={() => setShowPrivacy(true)} notice={accountDeleted ? "Ton compte et toutes tes données ont été supprimés." : ""} />
+      {showPrivacy && <PrivacyPage onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 
@@ -868,7 +873,11 @@ export default function SeriesBoxd() {
             )}
           </div>
         )}
-        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onChangePassword={() => { setShowSettingsPage(false); setPasswordScreen("change"); }} onLogout={async () => { await supabase.auth.signOut(); }} />}
+        {showSettingsPage && <SettingsPage user={user} onSave={u => { setUser(u); }} onClose={() => setShowSettingsPage(false)} watched={watched} library={library} authEmail={authUser?.email} onChangePassword={() => { setShowSettingsPage(false); setPasswordScreen("change"); }} onLogout={async () => { await supabase.auth.signOut(); }}
+          onExportData={async () => downloadJson(`seriesboxd-mes-donnees-${new Date().toISOString().slice(0, 10)}.json`, await exportMyData(authUserId))}
+          onDeleteAccount={async () => { await deleteMyAccount(authUserId); setAccountDeleted(true); setShowSettingsPage(false); }}
+          onOpenPrivacy={() => setShowPrivacy(true)} />}
+        {showPrivacy && <PrivacyPage onClose={() => setShowPrivacy(false)} />}
         {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} watchedEpisodes={watchedEpisodes} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}

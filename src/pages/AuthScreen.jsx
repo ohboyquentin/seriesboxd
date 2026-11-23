@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase.js";
 
 
 // ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
-export function AuthScreen() {
+export function AuthScreen({ onOpenPrivacy, notice = "" }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,6 +86,13 @@ export function AuthScreen() {
             <button onClick={() => { setMode("login"); setError(""); setSuccess(""); }}
               style={{ background:"none", border:"none", color:"#555", fontSize:13, cursor:"pointer", textAlign:"center" }}>
               ← Retour à la connexion
+            </button>
+          )}
+          {notice && <div style={{ color:"#4ade80", fontSize:13, textAlign:"center", background:"rgba(74,222,128,.1)", padding:"10px 14px", borderRadius:10 }}>{notice}</div>}
+          {onOpenPrivacy && (
+            <button onClick={onOpenPrivacy}
+              style={{ background:"none", border:"none", color:"#444", fontSize:12, cursor:"pointer", textAlign:"center", marginTop: 8, textDecoration: "underline" }}>
+              Confidentialité
             </button>
           )}
         </div>
