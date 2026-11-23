@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── TAGS PAGE ────────────────────────────────────────────────────────────────
 export function TagsPage({ library, tags, onAddTag, onRemoveTag, onAskConfirm, openSeries }) {
@@ -26,7 +27,7 @@ export function TagsPage({ library, tags, onAddTag, onRemoveTag, onAskConfirm, o
   const SUGGESTED = ["à-revoir", "cozy", "culte", "chef-d'œuvre", "overrated", "underrated", "feelgood", "intense", "lent", "drôle", "triste", "effrayant", "addictif", "décevant"];
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 20px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Tags</div>
         <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{allTags.length} tag{allTags.length !== 1 ? "s" : ""} créé{allTags.length !== 1 ? "s" : ""}</div>

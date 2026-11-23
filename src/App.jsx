@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { lazyPage } from "./components/lazyPage.jsx";
 import { HexBadge } from "./components/HexBadge.jsx";
 import { ContinueWatchingSection, HomeSection, PopularWithFriends } from "./components/HomeSections.jsx";
@@ -12,6 +12,7 @@ import { formatRelativeTime, formatTime, initialOf } from "./lib/format.js";
 import { fetchFollows, fetchListLikes, listLikeKey } from "./lib/social.js";
 import { computeStats } from "./lib/stats.js";
 import { computeUnlockedBadgeIds } from "./lib/badgeRules.js";
+import { deleteReview, fetchUserReviews, groupReviewsBySeries } from "./lib/reviews.js";
 import { loadSavedData, persistData } from "./lib/storage.js";
 import { OPENED_FROM_RECOVERY_LINK, supabase } from "./lib/supabase.js";
 import { adaptShow, tmdbViaClaude } from "./lib/tmdb.js";
@@ -20,6 +21,7 @@ import { NewPasswordScreen } from "./pages/NewPasswordScreen.jsx";
 import { Onboarding } from "./pages/Onboarding.jsx";
 import { SearchPage } from "./pages/SearchPage.jsx";
 import { SeriesDetailPage } from "./pages/SeriesDetailPage.jsx";
+import { scrollTopOnMount } from "./lib/dom.js";
 
 // Écrans secondaires : chargés seulement à leur première ouverture
 const BadgesPage = lazyPage(() => import("./pages/BadgesPage.jsx"), "BadgesPage");
@@ -81,7 +83,10 @@ export default function SeriesBoxd() {
   const [viewingList, setViewingList] = useState(null);
   const [library, setLibrary] = useState([]);
   const [detailSeries, setDetailSeries] = useState(null);
-  const [extraReviews, setExtraReviews] = useState({});
+  // Mes critiques (table Supabase « reviews »). extraReviews = les mêmes, regroupées par série
+  // (format utilisé par les badges, l'écran « Mes critiques » et le compteur du profil).
+  const [myReviews, setMyReviews] = useState([]);
+  const extraReviews = useMemo(() => groupReviewsBySeries(myReviews), [myReviews]);
   const [watchHistory, setWatchHistory] = useState({});
   const [activityLog, setActivityLog] = useState([]);
   const [diaryTab, setDiaryTab] = useState("mine");
@@ -149,7 +154,6 @@ export default function SeriesBoxd() {
         .catch(e => console.warn("Réduction avatar :", e.message));
     }
     setLibrary(saved.library || []);
-    setExtraReviews(saved.extraReviews || {});
     setWatchHistory(saved.watchHistory || {});
     setActivityLog(saved.activityLog || []);
     setWatchedEpisodes(saved.watchedEpisodes || {});
@@ -161,6 +165,12 @@ export default function SeriesBoxd() {
     setPosterClicks(saved.posterClicks || {});
     setWatchlistPeak(saved.watchlistPeak || 0);
     prevUnlockedRef.current = null; // évite un faux toast de badges au changement de compte
+    if (uid) {
+      try { setMyReviews(await fetchUserReviews(uid)); }
+      catch (e) { console.warn("Mes critiques :", e.message); setMyReviews([]); }
+    } else {
+      setMyReviews([]);
+    }
     if (uid) {
       try {
         const { followingIds: fids, followerIds } = await fetchFollows(uid);
@@ -239,8 +249,8 @@ export default function SeriesBoxd() {
   // ── Sauvegarde automatique dans localStorage ───────────────────────────────
   useEffect(() => {
     if (!dataLoaded) return; // Ne pas écraser avec des valeurs vides au 1er render
-    persistData({ onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUserId, remoteOkRef.current);
-  }, [onboarded, user, library, extraReviews, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded, authUserId]);
+    persistData({ onboarded, user, library, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak }, authUserId, remoteOkRef.current);
+  }, [onboarded, user, library, watchHistory, activityLog, watchedEpisodes, lists, tags, unlockedBadgeIds, pinnedBadgeIds, rewatchCounts, posterClicks, watchlistPeak, dataLoaded, authUserId]);
 
   // Clé stable de la liste des abonnements (change seulement si la liste change vraiment)
   const followingKey = followingIds.join(",");
@@ -356,12 +366,12 @@ export default function SeriesBoxd() {
     setDetailSeries(existing || s);
     setPosterClicks(prev => ({ ...prev, [s.tmdbId]: (prev[s.tmdbId] || 0) + 1 }));
   }, [library]);
-  const handleAddReview = (sid, review) => {
-    const cur = extraReviews[sid] || [];
-    const series = library.find(s => s.tmdbId === sid);
-    setExtraReviews(p => ({ ...p, [sid]: [...cur, { id: Date.now(), user: user.name, avatar: initialOf(user.name), rating: review.rating, text: review.text, likes: 0, liked: false, date: "Aujourd'hui" }] }));
-    if (series) addActivity("review", `Tu as review ${series.title}`);
-  };
+  // Recharge mes critiques après une publication / un like (badges, compteur, écran « Mes critiques »)
+  const reloadMyReviews = useCallback(async () => {
+    if (!authUserId) return;
+    try { setMyReviews(await fetchUserReviews(authUserId)); }
+    catch (e) { console.warn("Mes critiques :", e.message); }
+  }, [authUserId]);
   const handleSeriesMetaLoaded = (tmdbId, meta) => {
     setLibrary(prev => prev.map(s => s.tmdbId === tmdbId ? { ...s, ...meta } : s));
   };
@@ -374,30 +384,13 @@ export default function SeriesBoxd() {
     addActivity("rewatch", "Tu as rewatch " + title);
   };
 
-  const handleDeleteReview = (sid, rid) => {
-    setExtraReviews(prev => ({
-      ...prev,
-      [sid]: (prev[sid] || []).filter((r, i) => (r.id || i) !== rid),
-    }));
-  };
-
-  const handleToggleLike = (sid, rid) => {
-    const cur = extraReviews[sid] || [];
-    const review = cur.find(r => r.id === rid);
-    const series = library.find(s => s.tmdbId === sid);
-    const alreadyLiked = review?.liked;
-    setExtraReviews(p => ({ ...p, [sid]: cur.map(r => r.id===rid ? { ...r, liked: !r.liked, likes: r.liked?r.likes-1:r.likes+1 } : r) }));
-    if (!alreadyLiked && series) addActivity("like", `Tu as aimé la critique de ${review?.user || "quelqu'un"} sur ${series.title}`);
-  };
-
-  const handleAddComment = (sid, rid, text) => {
-    if (!text.trim()) return;
-    const cur = extraReviews[sid] || [];
-    const review = cur.find(r => r.id === rid);
-    const series = library.find(s => s.tmdbId === sid);
-    const comment = { id: Date.now() + Math.random(), user: user.name, avatar: initialOf(user.name), text: text.trim(), ts: new Date().toISOString() };
-    setExtraReviews(p => ({ ...p, [sid]: cur.map(r => r.id===rid ? { ...r, comments: [...(r.comments||[]), comment] } : r) }));
-    addActivity("comment", `Tu as commenté la critique de ${review?.user || "quelqu'un"} sur ${series?.title || "une série"}`);
+  const handleDeleteReview = async (_sid, rid) => {
+    try {
+      await deleteReview(rid);
+      setMyReviews(prev => prev.filter(r => r.id !== rid));
+    } catch (e) {
+      console.warn("Suppression de la critique :", e.message);
+    }
   };
 
   const toggleListLikeRemote = async (ownerId, listId) => {
@@ -500,7 +493,7 @@ export default function SeriesBoxd() {
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 440, position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} allReviews={extraReviews} onAddReview={handleAddReview} onToggleLike={handleToggleLike} onAddComment={handleAddComment} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} currentUserId={authUser?.id} onWatchedEpisodesChange={(eps) => {
+        {detailSeries && <SeriesDetailPage series={detailSeries} library={library} onClose={() => setDetailSeries(null)} onRate={handleRate} onMarkWatched={handleMarkWatched} onToggleWatchlist={handleToggleWatchlist} watchHistory={watchHistory} onReviewsChanged={reloadMyReviews} onActivity={addActivity} watchedEpisodes={watchedEpisodes[detailSeries?.tmdbId] || {}} rewatchData={rewatchCounts[detailSeries?.tmdbId] || null} onRewatch={(title) => askConfirm('Veux-tu ajouter un rewatch pour ' + title + ' ?', () => handleRewatch(detailSeries.tmdbId, title), { title: 'Rewatch', confirmLabel: 'Confirmer', danger: false })} onAskConfirm={askConfirm} onSeriesMetaLoaded={handleSeriesMetaLoaded} onEpPopup={(ep, seasonN) => setEpPopup({ ep, seasonN, tmdbId: detailSeries?.tmdbId })} friendsData={friendsActivity.filter(f => f.series?.tmdbId === detailSeries?.tmdbId)} currentUserId={authUser?.id} onWatchedEpisodesChange={(eps) => {
           setWatchedEpisodes(prev => ({ ...prev, [detailSeries.tmdbId]: eps }));
           // Auto-ajouter à la library si pas encore présente et qu'on coche un épisode
           const hasAny = Object.values(eps).some(Boolean);
@@ -886,7 +879,7 @@ export default function SeriesBoxd() {
 
         {/* ── LISTS PAGE ──────────────────────────────────────────────── */}
         {showListsPage && !showCreateList && !viewingList && (
-          <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
+          <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
             {/* Header */}
             <div style={{ padding: "52px 20px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
@@ -979,7 +972,7 @@ export default function SeriesBoxd() {
             const canSave = listName.trim().length > 0;
 
             return (
-              <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+              <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
                 {/* Header */}
                 <div style={{ padding: "52px 20px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Nouvelle liste</div>
@@ -1079,7 +1072,7 @@ export default function SeriesBoxd() {
         {showListsPage && viewingList && !showCreateList && (() => {
           const list = lists.find(l => l.id === viewingList.id) || viewingList;
           return (
-            <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
+            <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
               <div style={{ padding: "52px 20px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{list.name}</div>

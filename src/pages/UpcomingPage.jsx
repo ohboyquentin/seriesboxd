@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Spinner } from "../components/ui.jsx";
 import { ORANGE } from "../constants/theme.js";
 import { tmdbViaClaude } from "../lib/tmdb.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── UPCOMING PAGE ────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export function UpcomingPage({ library, watchedEpisodes = {} }) {
   };
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 20px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>À venir</div>
         <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Prochains épisodes de tes séries</div>

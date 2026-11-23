@@ -3,20 +3,22 @@ import { SimilarSeries } from "../components/SimilarSeries.jsx";
 import { ErrorState, Spinner, StarRating } from "../components/ui.jsx";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
 import { initialOf } from "../lib/format.js";
-import { fetchCommunityReviews } from "../lib/social.js";
+import { addReviewComment, createReview, fetchSeriesReviews, setReviewLike } from "../lib/reviews.js";
 import { GENRE_MAP, IMG, backdropUrl, tmdbStatus, tmdbViaClaude } from "../lib/tmdb.js";
 
 // ─── SERIES DETAIL PAGE ───────────────────────────────────────────────────────
 
-export function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, allReviews, onAddReview, onToggleLike, onAddComment, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
+export function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, onReviewsChanged, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
   const [detailTab, setDetailTab] = useState("info");
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
   const [showForm, setShowForm] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
-  const [communityReviews, setCommunityReviews] = useState([]);
-  const [communityReviewsLoading, setCommunityReviewsLoading] = useState(true);
+  const [reviews, setReviews] = useState([]);          // critiques de tout le monde sur cette série
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+  const [publishing, setPublishing] = useState(false);
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -24,6 +26,9 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
   const [loading, setLoading] = useState(true);
   const [detailError, setDetailError] = useState(false);
   const fetched = useRef(false);
+  const pageRef = useRef(null);
+  // Remonte en haut à l'ouverture et quand on change de série (pas à chaque mise à jour)
+  useEffect(() => { pageRef.current?.scrollTo(0, 0); }, [series.tmdbId]);
 
   // Suivi par épisode (initialisé depuis les données sauvegardées)
   const [watchedEps, setWatchedEps] = useState(initialWatchedEps);
@@ -138,31 +143,71 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
     loadDetail();
   }, [loadDetail]);
 
-  const localReviews = allReviews[series.tmdbId] || [];
-
-  useEffect(() => {
-    let cancelled = false;
-    setCommunityReviewsLoading(true);
-    fetchCommunityReviews(series.tmdbId, currentUserId)
-      .then(rs => { if (!cancelled) setCommunityReviews(rs); })
-      .catch(e => { console.error("Chargement des critiques communautaires:", e); if (!cancelled) setCommunityReviews([]); })
-      .finally(() => { if (!cancelled) setCommunityReviewsLoading(false); });
-    return () => { cancelled = true; };
+  // Chargement des critiques de la série (toutes, y compris les miennes)
+  const reviewsRequest = useRef(0);
+  const loadReviews = useCallback(async () => {
+    const req = ++reviewsRequest.current; // ignore une réponse arrivée après une plus récente
+    try {
+      const rs = await fetchSeriesReviews(series.tmdbId, currentUserId);
+      if (req === reviewsRequest.current) { setReviews(rs); setReviewsError(""); }
+    } catch (e) {
+      console.error("Chargement des critiques :", e);
+      if (req === reviewsRequest.current) setReviewsError("Impossible de charger les critiques.");
+    } finally {
+      if (req === reviewsRequest.current) setReviewsLoading(false);
+    }
   }, [series.tmdbId, currentUserId]);
 
-  const allDisplayReviews = [
-    ...localReviews.map(r => ({ ...r, isMine: true })),
-    ...communityReviews.map(r => ({ ...r, isMine: false })),
-  ];
-  const handleSubmit = () => {
-    if (!reviewText.trim()) return;
-    onAddReview(series.tmdbId, { text: reviewText, rating: reviewRating });
-    setReviewText(""); setReviewRating(0); setShowForm(false);
+  useEffect(() => { loadReviews(); }, [loadReviews]);
+
+  const seriesTitle = liveSeries.title || series.title;
+
+  const handleSubmit = async () => {
+    if (!reviewText.trim() || publishing) return;
+    setPublishing(true);
+    try {
+      await createReview({ tmdbId: series.tmdbId, rating: reviewRating, text: reviewText });
+      onActivity?.("review", `Tu as review ${seriesTitle}`);
+      setReviewText(""); setReviewRating(0); setShowForm(false);
+      await loadReviews();
+      onReviewsChanged?.();
+    } catch (e) {
+      console.error("Publication de la critique :", e);
+      setReviewsError("La critique n'a pas pu être publiée. Réessaie.");
+    }
+    setPublishing(false);
+  };
+
+  const handleToggleLike = async (rv) => {
+    if (!currentUserId) return;
+    const like = !rv.liked;
+    // Mise à jour immédiate, annulée si l'enregistrement échoue
+    setReviews(prev => prev.map(r => r.id === rv.id ? { ...r, liked: like, likes: r.likes + (like ? 1 : -1) } : r));
+    try {
+      await setReviewLike(rv.id, currentUserId, like);
+      if (like) onActivity?.("like", `Tu as aimé la critique de ${rv.user} sur ${seriesTitle}`);
+      if (rv.isMine) onReviewsChanged?.();
+    } catch (e) {
+      console.error("Like de la critique :", e);
+      setReviews(prev => prev.map(r => r.id === rv.id ? { ...r, liked: !like, likes: r.likes + (like ? -1 : 1) } : r));
+    }
+  };
+
+  const handleAddComment = async (rv, text) => {
+    try {
+      await addReviewComment(rv.id, text);
+      onActivity?.("comment", `Tu as commenté la critique de ${rv.user} sur ${seriesTitle}`);
+      await loadReviews();
+      return true;
+    } catch (e) {
+      console.error("Commentaire :", e);
+      return false;
+    }
   };
   const backdropSrc = detail?.backdrop_path ? backdropUrl(detail.backdrop_path) : series.backdrop;
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, zIndex: 950, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
+    <div ref={pageRef} style={{ position: "fixed", inset: 0, zIndex: 950, background: "#080808", overflowY: "auto", animation: "slideInRight .28s ease", maxWidth: 440, margin: "0 auto", paddingBottom: 90 }}>
       {/* Hero */}
       <div style={{ position: "relative", height: 300 }}>
         {backdropSrc
@@ -415,7 +460,7 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
               <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Partage ton avis..." style={{ width: "100%", background: "#141414", border: "1px solid #252525", borderRadius: 10, padding: "12px", color: "#ddd", fontSize: 14, lineHeight: 1.5, minHeight: 100, resize: "none", outline: "none", fontFamily: "'DM Sans',system-ui,sans-serif" }} />
               <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                 <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "#111", border: "1px solid #222", color: "#666", fontSize: 13, cursor: "pointer" }}>Annuler</button>
-                <button onClick={handleSubmit} style={{ flex: 2, padding: "10px", borderRadius: 10, background: ORANGE, border: "none", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Publier</button>
+                <button onClick={handleSubmit} disabled={publishing || !reviewText.trim()} style={{ flex: 2, padding: "10px", borderRadius: 10, background: publishing || !reviewText.trim() ? "#222" : ORANGE, border: "none", color: publishing || !reviewText.trim() ? "#555" : "#fff", fontSize: 13, fontWeight: 600, cursor: publishing ? "default" : "pointer" }}>{publishing ? "Publication…" : "Publier"}</button>
               </div>
             </div>
           )}
@@ -424,9 +469,10 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
               ✏️ Écrire une critique
             </button>
           )}
-          <div style={{ fontSize: 13, color: "#444", marginBottom: 14 }}>{allDisplayReviews.length} critique{allDisplayReviews.length!==1?"s":""}{communityReviewsLoading && <span style={{ color: "#333" }}> · chargement…</span>}</div>
+          {reviewsError && <div style={{ color:"#f87171", fontSize:13, background:"rgba(248,113,113,.1)", padding:"10px 14px", borderRadius:10, marginBottom: 14 }}>{reviewsError}</div>}
+          <div style={{ fontSize: 13, color: "#444", marginBottom: 14 }}>{reviews.length} critique{reviews.length!==1?"s":""}{reviewsLoading && <span style={{ color: "#333" }}> · chargement…</span>}</div>
           {(() => {
-            const sortedReviews = [...allDisplayReviews].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            const sortedReviews = [...reviews].sort((a, b) => (b.likes || 0) - (a.likes || 0));
             const displayedReviews = showAllReviews ? sortedReviews : sortedReviews.slice(0, 3);
             const remaining = sortedReviews.length - displayedReviews.length;
             return (
@@ -435,7 +481,9 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
                   <div key={rv.id||i} style={{ background: "#0d0d0d", border: "1px solid #191919", borderRadius: 16, padding: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 14 }}>{rv.avatar}</div>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 14, overflow: "hidden", flexShrink: 0 }}>
+                          {rv.avatarUrl ? <img src={rv.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : rv.avatar}
+                        </div>
                         <div>
                           <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{rv.user}</div>
                           <div style={{ color: "#444", fontSize: 11 }}>{rv.date}</div>
@@ -444,22 +492,14 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
                       <StarRating value={rv.rating} size={12} />
                     </div>
                     <div style={{ color: "#bbb", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{rv.text}</div>
-                    {rv.isMine ? (
-                      <>
-                        <button onClick={() => onToggleLike(series.tmdbId, rv.id||i)} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: "pointer", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
-                          <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
-                        </button>
-                        <ReviewComments review={rv} onAddComment={(text) => onAddComment(series.tmdbId, rv.id||i, text)} />
-                      </>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#444", fontSize: 12 }}>
-                        <span>{rv.likes > 0 ? "♥" : "♡"}</span> <span>{rv.likes || 0} J'aime</span>
-                        {rv.comments?.length > 0 && <span style={{ marginLeft: 8 }}>💬 {rv.comments.length}</span>}
-                      </div>
-                    )}
+                    {/* J'aime et commentaires : possibles sur toutes les critiques quand on est connecté */}
+                    <button onClick={() => handleToggleLike(rv)} disabled={!currentUserId} style={{ display: "flex", alignItems: "center", gap: 6, background: rv.liked ? ORANGE_DIM : "transparent", border: `1px solid ${rv.liked ? ORANGE_BORDER : "#252525"}`, borderRadius: 20, padding: "5px 12px", cursor: currentUserId ? "pointer" : "default", color: rv.liked ? ORANGE : "#555", fontSize: 12 }}>
+                      <span>{rv.liked?"♥":"♡"}</span> <span>{rv.likes} J'aime</span>
+                    </button>
+                    <ReviewComments review={rv} canComment={!!currentUserId} onAddComment={(text) => handleAddComment(rv, text)} />
                   </div>
                 ))}
-                {!allDisplayReviews.length && !communityReviewsLoading && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
+                {!reviews.length && !reviewsLoading && <div style={{ textAlign: "center", color: "#333", fontSize: 13, padding: "30px 0" }}>Sois le premier à écrire une critique ✨</div>}
                 {!showAllReviews && remaining > 0 && (
                   <button onClick={() => setShowAllReviews(true)} style={{ width: "100%", padding: "12px", background: "#0e0e0e", border: "1px solid #1e1e1e", borderRadius: 12, color: ORANGE, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                     Voir plus de critiques ({remaining})
@@ -474,14 +514,17 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
   );
 }
 
-function ReviewComments({ review, onAddComment }) {
+function ReviewComments({ review, canComment, onAddComment }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const comments = review.comments || [];
-  const submit = () => {
-    if (!text.trim()) return;
-    onAddComment(text.trim());
-    setText("");
+  const submit = async () => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    const ok = await onAddComment(text.trim());
+    if (ok) setText("");
+    setSending(false);
   };
   return (
     <div style={{ marginTop: 10 }}>
@@ -492,17 +535,17 @@ function ReviewComments({ review, onAddComment }) {
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
           {comments.map((c, i) => (
             <div key={c.id || i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 10, flexShrink: 0 }}>{c.avatar}</div>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #252525", display: "flex", alignItems: "center", justifyContent: "center", color: ORANGE, fontWeight: 700, fontSize: 10, flexShrink: 0, overflow: "hidden" }}>{c.avatarUrl ? <img src={c.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : c.avatar}</div>
               <div style={{ flex: 1 }}>
                 <span style={{ color: "#ccc", fontSize: 12, fontWeight: 600 }}>{c.user}</span>
                 <span style={{ color: "#888", fontSize: 12 }}> {c.text}</span>
               </div>
             </div>
           ))}
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          {canComment && <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} placeholder="Ajouter un commentaire…" style={{ flex: 1, padding: "8px 12px", background: "#141414", border: "1px solid #222", borderRadius: 20, color: "#fff", fontSize: 12, outline: "none", fontFamily: "'DM Sans',system-ui,sans-serif" }} />
-            <button onClick={submit} disabled={!text.trim()} style={{ padding: "8px 14px", borderRadius: 20, background: text.trim() ? ORANGE_DIM : "#111", border: `1px solid ${text.trim() ? ORANGE_BORDER : "#222"}`, color: text.trim() ? ORANGE : "#444", fontSize: 12, cursor: text.trim() ? "pointer" : "default", flexShrink: 0 }}>Envoyer</button>
-          </div>
+            <button onClick={submit} disabled={!text.trim()} style={{ padding: "8px 14px", borderRadius: 20, background: text.trim() ? ORANGE_DIM : "#111", border: `1px solid ${text.trim() ? ORANGE_BORDER : "#222"}`, color: text.trim() ? ORANGE : "#444", fontSize: 12, cursor: text.trim() ? "pointer" : "default", flexShrink: 0 }}>{sending ? "…" : "Envoyer"}</button>
+          </div>}
         </div>
       )}
     </div>

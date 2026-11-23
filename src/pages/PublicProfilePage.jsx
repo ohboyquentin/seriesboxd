@@ -7,6 +7,7 @@ import { formatRelativeTime } from "../lib/format.js";
 import { fetchFollows, fetchUserProfile } from "../lib/social.js";
 import { computeCompatibility } from "../lib/stats.js";
 import { supabase } from "../lib/supabase.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── PUBLIC PROFILE PAGE ─────────────────────────────────────────────────────
 export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLibrary = [], listLikeCounts = {}, likedListKeys = new Set(), onToggleListLike, onRefreshListLikes }) {
@@ -77,7 +78,7 @@ export function PublicProfilePage({ userId, currentUserId, onOpen, onClose, myLi
   const ICONS = { watch: ic("◉"), rate: ic("★",20), review: ic("✎"), like: ic("♥"), episode: ic("▶",15), watchlist: ic("◈"), list: ic("≡"), rewatch: ic("↺") };
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 910, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ position: "sticky", top: 0, background: "rgba(8,8,8,0.95)", backdropFilter: "blur(12px)", zIndex: 10, padding: "52px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #111" }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Profil</div>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>×</button>

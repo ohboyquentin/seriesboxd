@@ -2,6 +2,7 @@ import { useState } from "react";
 import { HexBadge } from "../components/HexBadge.jsx";
 import { ALL_BADGES, BADGE_CATEGORIES } from "../constants/badges.js";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── BADGES PAGE ──────────────────────────────────────────────────────────────
 export function BadgesPage({ unlockedBadgeIds = [], pinnedBadgeIds = [], onPin, onUnpin }) {
@@ -16,7 +17,7 @@ export function BadgesPage({ unlockedBadgeIds = [], pinnedBadgeIds = [], onPin, 
   const locked   = visible.filter(b => !unlockedBadgeIds.includes(b.id));
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ padding: "52px 20px 16px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Badges</div>

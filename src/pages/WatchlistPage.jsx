@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StarRating } from "../components/ui.jsx";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── WATCHLIST PAGE ───────────────────────────────────────────────────────────
 export function WatchlistPage({ library, openSeries }) {
@@ -15,7 +16,7 @@ export function WatchlistPage({ library, openSeries }) {
   else if (wlFilters.sort === "rating") wlList.sort((a,b) => (b.userRating||0) - (a.userRating||0));
   else if (wlFilters.sort === "year") wlList.sort((a,b) => (b.year||0) - (a.year||0));
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Watchlist</div>
