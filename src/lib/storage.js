@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { publicDataFor } from "./publicProfile.js";
 import { pruneTmdbCache } from "./tmdb.js";
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
@@ -55,10 +56,27 @@ export async function loadSavedData(userId) {
 
   let remote;
   try {
-    const { data, error } = await supabase
-      .from("profiles").select("data").eq("id", userId).maybeSingle();
-    if (error) throw error;
-    remote = data?.data || null;
+    // Le coffre privé (private_profiles) est la référence. profiles sert de secours pendant la
+    // transition : s'il contient encore un profil complet plus récent (modifié via l'ancienne
+    // version de l'app), c'est lui qu'on prend.
+    const [priv, pub] = await Promise.all([
+      supabase.from("private_profiles").select("data, updated_at").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("data, updated_at").eq("id", userId).maybeSingle(),
+    ]);
+    if (priv.error) throw priv.error;
+    if (pub.error) throw pub.error;
+    remote = priv.data?.data || null;
+    const pubData = pub.data?.data || null;
+    const pubIsFull = pubData && !pubData._public;
+    if (pubIsFull && (!remote || new Date(pub.data.updated_at) > new Date(priv.data?.updated_at || 0))) {
+      remote = pubData;
+    }
+    if (!remote && pubData) remote = pubData; // pas de coffre : on repart de ce qui existe
+    if (remote) {
+      remote = { ...remote };
+      delete remote._public;        // champs propres à la vitrine
+      delete remote.episodesCount;
+    }
   } catch (e) {
     console.warn("Supabase load — mode hors-ligne pour cette session :", e.message);
     return { data: bestLocal, remoteOk: false };
@@ -97,9 +115,15 @@ async function flushRemoteSave() {
   _saveInFlight = true;
   let ok = false;
   try {
-    const { error } = await supabase.from("profiles")
-      .upsert({ id: userId, data, updated_at: new Date().toISOString() });
-    if (error) throw error;
+    const now = new Date().toISOString();
+    // 1. Coffre privé : toutes les données (lisible par le seul propriétaire)
+    const { error: privError } = await supabase.from("private_profiles")
+      .upsert({ id: userId, data, updated_at: now });
+    if (privError) throw privError;
+    // 2. Profil public : la vitrine (ou le profil complet pendant la transition, voir publicProfile.js)
+    const { error: pubError } = await supabase.from("profiles")
+      .upsert({ id: userId, data: publicDataFor(data), updated_at: now });
+    if (pubError) throw pubError;
     ok = true;
     // La copie locale correspond à ce qui est en ligne → plus rien en attente
     const local = loadLocalData(userId);

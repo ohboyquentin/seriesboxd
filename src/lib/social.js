@@ -67,6 +67,7 @@ export async function fetchUserProfile(userId) {
     library: data.data?.library || [],
     activityLog: data.data?.activityLog || [],
     watchedEpisodes: data.data?.watchedEpisodes || {},
+    episodesCount: data.data?.episodesCount, // présent dans la vitrine publique
     favShows: u.favShows || data.data?.favShows || [],
     lists: data.data?.lists || [],
   };
