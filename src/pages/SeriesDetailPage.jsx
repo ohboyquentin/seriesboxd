@@ -50,10 +50,10 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
         const allWatched = season.episodes.every(ep => next[epKey(seasonN, ep.ep)]);
         if (allWatched) {
           season.episodes.forEach(ep => { next[epKey(seasonN, ep.ep)] = true; });
-          if (onActivity) onActivity("episode", `Tu as fini la saison ${seasonN} de ${series.title}`);
+          if (onActivity) onActivity("episode", `Tu as fini la saison ${seasonN} de ${series.title}`, { act: "season_done", tmdbId: series.tmdbId, title: series.title, season: seasonN });
         } else if (next[key]) {
           const ep = season.episodes.find(e => e.ep === epN);
-          if (onActivity && ep) onActivity("episode", `Tu as vu ${series.title} S${seasonN}E${epN} – ${ep.title}`, { airDate: ep.air_date || null, durationMin: ep.durationMin || null });
+          if (onActivity && ep) onActivity("episode", `Tu as vu ${series.title} S${seasonN}E${epN} – ${ep.title}`, { act: "episode", tmdbId: series.tmdbId, title: series.title, episodeCode: `S${seasonN}E${epN}`, episodeTitle: ep.title, airDate: ep.air_date || null, durationMin: ep.durationMin || null });
         }
       }
       return next;
@@ -69,7 +69,7 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
       season.episodes.forEach(ep => { next[epKey(seasonN, ep.ep)] = !allWatched; });
       return next;
     });
-    if (!allWatched && onActivity) onActivity("episode", `Tu as fini la saison ${seasonN} de ${series.title}`);
+    if (!allWatched && onActivity) onActivity("episode", `Tu as fini la saison ${seasonN} de ${series.title}`, { act: "season_done", tmdbId: series.tmdbId, title: series.title, season: seasonN });
   };
 
   const seasonProgress = (seasonN) => {
@@ -167,7 +167,7 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
     setPublishing(true);
     try {
       await createReview({ tmdbId: series.tmdbId, rating: reviewRating, text: reviewText });
-      onActivity?.("review", `Tu as review ${seriesTitle}`);
+      onActivity?.("review", `Tu as review ${seriesTitle}`, { act: "review", tmdbId: series.tmdbId, title: seriesTitle });
       setReviewText(""); setReviewRating(0); setShowForm(false);
       await loadReviews();
       onReviewsChanged?.();
@@ -185,7 +185,7 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
     setReviews(prev => prev.map(r => r.id === rv.id ? { ...r, liked: like, likes: r.likes + (like ? 1 : -1) } : r));
     try {
       await setReviewLike(rv.id, currentUserId, like);
-      if (like) onActivity?.("like", `Tu as aimé la critique de ${rv.user} sur ${seriesTitle}`);
+      if (like) onActivity?.("like", `Tu as aimé la critique de ${rv.user} sur ${seriesTitle}`, { act: "like", tmdbId: series.tmdbId, title: seriesTitle, otherUser: rv.user });
       if (rv.isMine) onReviewsChanged?.();
     } catch (e) {
       console.error("Like de la critique :", e);
@@ -196,7 +196,7 @@ export function SeriesDetailPage({ series, library = [], onClose, onRate, onMark
   const handleAddComment = async (rv, text) => {
     try {
       await addReviewComment(rv.id, text);
-      onActivity?.("comment", `Tu as commenté la critique de ${rv.user} sur ${seriesTitle}`);
+      onActivity?.("comment", `Tu as commenté la critique de ${rv.user} sur ${seriesTitle}`, { act: "comment", tmdbId: series.tmdbId, title: seriesTitle, otherUser: rv.user });
       await loadReviews();
       return true;
     } catch (e) {

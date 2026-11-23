@@ -9,6 +9,7 @@ import { profileNavItems } from "./constants/genres.js";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "./constants/theme.js";
 import { AVATAR_MAX_CHARS, resizeImageDataUrl } from "./lib/avatar.js";
 import { formatRelativeTime, formatTime, initialOf } from "./lib/format.js";
+import { activitySeries, activityText } from "./lib/activity.js";
 import { fetchFollows, fetchListLikes, listLikeKey } from "./lib/social.js";
 import { computeStats } from "./lib/stats.js";
 import { computeUnlockedBadgeIds } from "./lib/badgeRules.js";
@@ -280,7 +281,7 @@ export default function SeriesBoxd() {
           const lib    = p.data?.library || [];
           libs.push({ id: p.id, watched: lib.filter(s => s.watched), favShows: u.favShows || p.data?.favShows || [] });
           (p.data?.activityLog || []).slice(0, 15).forEach(a => {
-            const series = lib.find(s => s.title && a.label?.includes(s.title)) || null;
+            const series = activitySeries(a, lib);
             acts.push({ userId: p.id, name, avatar, series, ...a });
           });
         });
@@ -309,7 +310,7 @@ export default function SeriesBoxd() {
       const base = exists ? prev : [...prev, { ...seriesData, tmdbId: id }];
       const updated = base.map(s => s.tmdbId === id ? { ...s, userRating: rating } : s);
       const series = updated.find(s => s.tmdbId === id);
-      if (series) addActivity("rate", `Tu as noté ${series.title} ${"★".repeat(Math.floor(rating))}${rating % 1 ? "½" : ""}`);
+      if (series) addActivity("rate", `Tu as noté ${series.title} ${"★".repeat(Math.floor(rating))}${rating % 1 ? "½" : ""}`, { act: "rate", tmdbId: id, title: series.title, rating });
       return updated;
     });
   };
@@ -320,7 +321,7 @@ export default function SeriesBoxd() {
       const isCurrentlyWatched = exists?.watched || false;
       const updated = base.map(s => s.tmdbId === id ? { ...s, watched: !isCurrentlyWatched } : s);
       const series = updated.find(s => s.tmdbId === id);
-      if (series?.watched) addActivity("watch", `Tu as vu ${series.title}`);
+      if (series?.watched) addActivity("watch", `Tu as vu ${series.title}`, { act: "watch", tmdbId: id, title: series.title });
       return updated;
     });
     setWatchHistory(prev => {
@@ -355,11 +356,11 @@ export default function SeriesBoxd() {
       if (exists) {
         const updated = prev.map(s => s.tmdbId === id ? { ...s, inWatchlist: !s.inWatchlist } : s);
         const series = updated.find(s => s.tmdbId === id);
-        if (series?.inWatchlist) addActivity("watchlist", `Tu as ajouté ${series.title} à ta Watchlist`);
-        else addActivity("watchlist", `Tu as retiré ${series.title} de ta Watchlist`);
+        if (series?.inWatchlist) addActivity("watchlist", `Tu as ajouté ${series.title} à ta Watchlist`, { act: "watchlist_add", tmdbId: id, title: series.title });
+        else addActivity("watchlist", `Tu as retiré ${series.title} de ta Watchlist`, { act: "watchlist_remove", tmdbId: id, title: series.title });
         return updated;
       } else if (seriesData) {
-        addActivity("watchlist", `Tu as ajouté ${seriesData.title} à ta Watchlist`);
+        addActivity("watchlist", `Tu as ajouté ${seriesData.title} à ta Watchlist`, { act: "watchlist_add", tmdbId: id, title: seriesData.title });
         return [...prev, { ...seriesData, inWatchlist: true }];
       }
       return prev;
@@ -385,7 +386,7 @@ export default function SeriesBoxd() {
       const cur = prev[id] || { count: 0, lastDate: null };
       return { ...prev, [id]: { count: cur.count + 1, lastDate: new Date().toISOString().slice(0, 10) } };
     });
-    addActivity("rewatch", "Tu as rewatch " + title);
+    addActivity("rewatch", "Tu as rewatch " + title, { act: "rewatch", tmdbId: id, title });
   };
 
   const handleDeleteReview = async (_sid, rid) => {
@@ -583,7 +584,7 @@ export default function SeriesBoxd() {
                             {/* Contenu */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{user.pseudo || user.name}</span>
-                              <span style={{ color: "#666", fontSize: 13 }}> {entry.label}</span>
+                              <span style={{ color: "#666", fontSize: 13 }}> {activityText(entry, "name")}</span>
                             </div>
                             {/* Temps */}
                             <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelative(entry.ts)}</div>
@@ -622,7 +623,7 @@ export default function SeriesBoxd() {
                             {/* Contenu */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{f.name}</span>
-                              <span style={{ color: "#666", fontSize: 13 }}> {(f.label || "").replace(/^Tu as /, "a ").replace(/^Tu /, "")}</span>
+                              <span style={{ color: "#666", fontSize: 13 }}> {activityText(f, "name")}</span>
                             </div>
                             {/* Temps */}
                             <div style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>{formatRelativeTime(f.ts)}</div>
@@ -729,7 +730,7 @@ export default function SeriesBoxd() {
                   {(() => {
                     const activityMap = {};
                     activityLog.filter(a => ["watch","rate","review"].includes(a.type)).forEach(a => {
-                      const series = library.find(s => a.label?.includes(s.title));
+                      const series = activitySeries(a, library);
                       if (!series) return;
                       const key = series.tmdbId;
                       if (!activityMap[key]) activityMap[key] = { series, watched: false, rated: false, reviewed: false, ts: a.ts };
@@ -748,7 +749,7 @@ export default function SeriesBoxd() {
                 {(() => {
                   const activityMap = {};
                   activityLog.filter(a => ["watch","rate","review"].includes(a.type)).forEach(a => {
-                    const series = library.find(s => a.label?.includes(s.title));
+                    const series = activitySeries(a, library);
                     if (!series) return;
                     const key = series.tmdbId;
                     if (!activityMap[key]) activityMap[key] = { series, watched: false, rated: false, reviewed: false, ts: a.ts };
@@ -973,7 +974,7 @@ export default function SeriesBoxd() {
                 createdAt: new Date().toISOString(),
               };
               setLists(prev => [newList, ...prev]);
-              addActivity("list", `Tu as créé la liste "${newList.name}"`);
+              addActivity("list", `Tu as créé la liste "${newList.name}"`, { act: "list_create", listName: newList.name });
               setShowCreateList(false);
             };
 
