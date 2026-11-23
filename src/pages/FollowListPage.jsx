@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Spinner } from "../components/ui.jsx";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
 import { supabase } from "../lib/supabase.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── FOLLOW LIST PAGE ─────────────────────────────────────────────────────────
 export function FollowListPage({ title, userId, type, currentUserId, onViewProfile }) {
@@ -48,7 +49,7 @@ export function FollowListPage({ title, userId, type, currentUserId, onViewProfi
   };
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 920, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 920, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 16px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>{title}</div>
         <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{users.length} {type === "followers" ? "abonné" : "abonnement"}{users.length !== 1 ? "s" : ""}</div>

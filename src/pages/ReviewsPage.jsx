@@ -1,5 +1,6 @@
 import { StarRating } from "../components/ui.jsx";
 import { ORANGE } from "../constants/theme.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── REVIEWS PAGE ─────────────────────────────────────────────────────────────
 export function ReviewsPage({ extraReviews, library, openSeries, onDeleteReview, onAskConfirm }) {
@@ -14,7 +15,7 @@ export function ReviewsPage({ extraReviews, library, openSeries, onDeleteReview,
   allReviews.sort((a, b) => (b.id || 0) - (a.id || 0));
 
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 100, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 20px" }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>Reviews</div>
         <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{allReviews.length} critique{allReviews.length !== 1 ? "s" : ""} publiée{allReviews.length !== 1 ? "s" : ""}</div>

@@ -50,27 +50,6 @@ export async function searchUsers(query) {
   });
 }
 
-export async function fetchCommunityReviews(tmdbId, excludeUserId) {
-  // Les critiques sont stockées dans le profil de chaque utilisateur (data.extraReviews[tmdbId]).
-  // On demande à Supabase UNIQUEMENT les critiques de cette série (filtre fait côté base),
-  // au lieu de télécharger tous les profils complets.
-  const id = String(parseInt(tmdbId, 10));
-  if (id === "NaN") return [];
-  const path = `data->extraReviews->"${id}"`;
-  let query = supabase.from("profiles").select(`id, reviews:${path}`).not(path, "is", null);
-  if (excludeUserId) query = query.neq("id", excludeUserId); // tes critiques sont gérées localement
-  const { data, error } = await query;
-  if (error) {
-    console.error("fetchCommunityReviews — erreur Supabase:", error.message, error);
-    return [];
-  }
-  const result = [];
-  (data || []).forEach(row => {
-    (Array.isArray(row.reviews) ? row.reviews : []).forEach(r => result.push({ ...r, authorId: row.id }));
-  });
-  return result;
-}
-
 export async function fetchUserProfile(userId) {
   const { data } = await supabase
     .from("profiles").select("id, data, updated_at").eq("id", userId).single();
@@ -87,7 +66,6 @@ export async function fetchUserProfile(userId) {
     unlockedBadgeIds: data.data?.unlockedBadgeIds || [],
     library: data.data?.library || [],
     activityLog: data.data?.activityLog || [],
-    extraReviews: data.data?.extraReviews || {},
     watchedEpisodes: data.data?.watchedEpisodes || {},
     favShows: u.favShows || data.data?.favShows || [],
     lists: data.data?.lists || [],

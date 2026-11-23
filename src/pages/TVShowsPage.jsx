@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StarRating } from "../components/ui.jsx";
 import { ORANGE, ORANGE_BORDER, ORANGE_DIM } from "../constants/theme.js";
+import { scrollTopOnMount } from "../lib/dom.js";
 
 // ─── TV SHOWS PAGE ────────────────────────────────────────────────────────────
 export function TVShowsPage({ watched, watchHistory, openSeries, rewatchCounts }) {
@@ -14,7 +15,7 @@ export function TVShowsPage({ watched, watchHistory, openSeries, rewatchCounts }
   else if (tvFilters.sort === "rating") tvList.sort((a,b) => (b.userRating||0) - (a.userRating||0));
   else if (tvFilters.sort === "title") tvList.sort((a,b) => a.title.localeCompare(b.title));
   return (
-    <div ref={el => el && el.scrollTo(0,0)} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
+    <div ref={scrollTopOnMount} style={{ position: "fixed", inset: 0, background: "#080808", zIndex: 900, overflowY: "auto", paddingBottom: 90, maxWidth: 440, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif" }}>TV Shows</div>

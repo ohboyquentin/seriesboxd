@@ -22,7 +22,7 @@ function saveLocalData(data, userId) {
 }
 
 // Champs présents dans la copie locale (allégée). Les champs absents de cette liste
-// (activityLog, watchedEpisodes, extraReviews…) n'existent QUE dans Supabase :
+// (activityLog, watchedEpisodes…) n'existent QUE dans Supabase :
 // la copie locale ne doit donc jamais remplacer les données Supabase en bloc.
 const LOCAL_FIELDS = [
   "onboarded", "user", "library", "watchHistory", "lists", "tags",
