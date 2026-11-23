@@ -10,7 +10,7 @@ import { GENRE_MAP, IMG, backdropUrl, tmdbStatus, tmdbViaClaude } from "../lib/t
 
 export function SeriesDetailPage({ series, library = [], onClose, onRate, onMarkWatched, onToggleWatchlist, onReviewsChanged, onActivity, watchedEpisodes: initialWatchedEps = {}, onWatchedEpisodesChange, onOpen, rewatchData, onRewatch, onAskConfirm, onSeriesMetaLoaded, onEpPopup, friendsData = [], currentUserId }) {
   const liveSeries = library.find(s => s.tmdbId === series.tmdbId) || series;
-  const [detailTab, setDetailTab] = useState("info");
+  const [detailTab, setDetailTab] = useState(series._tab || "info");
   const [openSeason, setOpenSeason] = useState(1);
   const [userRating, setUserRating] = useState(series.userRating);
   const [showForm, setShowForm] = useState(false);

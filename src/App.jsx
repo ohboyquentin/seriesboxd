@@ -16,6 +16,7 @@ import { computeStats } from "./lib/stats.js";
 import { computeUnlockedBadgeIds } from "./lib/badgeRules.js";
 import { deleteReview, fetchUserReviews, groupReviewsBySeries } from "./lib/reviews.js";
 import { deleteMyAccount, downloadJson, exportMyData } from "./lib/account.js";
+import { countUnread, fetchNotifications, markAllRead } from "./lib/notifications.js";
 import { loadSavedData, persistData } from "./lib/storage.js";
 import { OPENED_FROM_RECOVERY_LINK, supabase } from "./lib/supabase.js";
 import { adaptShow, tmdbViaClaude } from "./lib/tmdb.js";
@@ -34,6 +35,7 @@ const ReviewsPage = lazyPage(() => import("./pages/ReviewsPage.jsx"), "ReviewsPa
 const SeeAllPage = lazyPage(() => import("./pages/SeeAllPage.jsx"), "SeeAllPage");
 const SettingsPage = lazyPage(() => import("./pages/SettingsPage.jsx"), "SettingsPage");
 const PrivacyPage = lazyPage(() => import("./pages/PrivacyPage.jsx"), "PrivacyPage");
+const NotificationsPage = lazyPage(() => import("./pages/NotificationsPage.jsx"), "NotificationsPage");
 const TVShowsPage = lazyPage(() => import("./pages/TVShowsPage.jsx"), "TVShowsPage");
 const TagsPage = lazyPage(() => import("./pages/TagsPage.jsx"), "TagsPage");
 const UpcomingPage = lazyPage(() => import("./pages/UpcomingPage.jsx"), "UpcomingPage");
@@ -103,6 +105,11 @@ export default function SeriesBoxd() {
   // Écran « nouveau mot de passe » : "recovery" (arrivée par le lien de l'e-mail), "change" (depuis les paramètres) ou null
   const [passwordScreen, setPasswordScreen] = useState(OPENED_FROM_RECOVERY_LINK ? "recovery" : null);
   const [showPrivacy, setShowPrivacy] = useState(false);          // page « Confidentialité »
+  // Notifications
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [accountDeleted, setAccountDeleted] = useState(false);    // message après suppression du compte
 
   // ─── Calcul automatique des badges ───────────────────────────────────────────
@@ -144,6 +151,7 @@ export default function SeriesBoxd() {
     setViewingProfile(null);
     setShowFollowersPage(false);
     setShowFollowingPage(false);
+    setShowNotifications(false);
     setEpPopup(null);
     setConfirm(null);
     setTab("home");
@@ -462,6 +470,48 @@ export default function SeriesBoxd() {
     { id: "profile", label: "Profil" },
   ];
 
+  // ── Notifications ───────────────────────────────────────────────────────────
+  // Compteur de non lues : au démarrage, au retour dans l'app et toutes les 2 minutes
+  useEffect(() => {
+    if (!authUserId) { setUnreadCount(0); setNotifications([]); return; }
+    let cancelled = false;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      countUnread(authUserId)
+        .then(n => { if (!cancelled) setUnreadCount(n); })
+        .catch(e => console.warn("Notifications :", e.message));
+    };
+    refresh();
+    const timer = setInterval(refresh, 120000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { cancelled = true; clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, [authUserId]);
+
+  const openNotifications = async () => {
+    setShowNotifications(true);
+    setNotificationsLoading(true);
+    try {
+      const list = await fetchNotifications(authUserId, { library, lists });
+      setNotifications(list);                 // les non lues restent mises en avant pendant cette visite
+      if (list.some(n => n.unread)) { await markAllRead(authUserId); setUnreadCount(0); }
+    } catch (e) {
+      console.warn("Notifications :", e.message);
+    }
+    setNotificationsLoading(false);
+  };
+
+  const openNotification = (n) => {
+    if (n.type === "follow") {
+      setViewingProfile({ userId: n.actorId });
+    } else if (n.type === "review_like" || n.type === "review_comment") {
+      const known = library.find(s => s.tmdbId === n.tmdbId);
+      setDetailSeries({ ...(known || { tmdbId: n.tmdbId, title: n.seriesTitle }), _tab: "reviews" });
+    } else if (n.type === "list_like" && n.list) {
+      setShowListsPage(true);
+      setViewingList(n.list);
+    }
+  };
+
   // ── Bouton retour / geste « glisser pour revenir » ──────────────────────────
   // Chaque écran ou fenêtre ouvert(e) a son entrée dans l'historique du navigateur :
   // « retour » ferme le dernier ouvert au lieu de quitter l'app.
@@ -485,6 +535,7 @@ export default function SeriesBoxd() {
     epPopup           && { key: "episode",    close: () => setEpPopup(null) },
     confirm           && { key: "confirm",    close: () => setConfirm(null) },
     showPrivacy       && { key: "privacy",    close: () => setShowPrivacy(false) },
+    showNotifications && { key: "notifs",     close: () => setShowNotifications(false) },
   ].filter(Boolean));
 
   if (!authReady || (authUser && !dataLoaded)) return (
@@ -542,6 +593,19 @@ export default function SeriesBoxd() {
             <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display',Georgia,serif", letterSpacing: "-.5px" }}>Series<span style={{ color: ORANGE }}>Boxd</span></div>
             {tab === "home" && <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Bienvenue, {user.name} 👋</div>}
           </div>
+          {tab === "home" && (
+            <div onClick={openNotifications} aria-label="Notifications" role="button" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", background: "#111", border: "1px solid #1e1e1e", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eca6ee" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {unreadCount > 0 && (
+                <div style={{ position: "absolute", top: -3, right: -3, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #080808" }}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </div>
+              )}
+            </div>
+          )}
           {tab === "profile" && (
           <div onClick={() => setShowSettingsPage(true)} style={{ width: 38, height: 38, borderRadius: "50%", background: "#111", border: "1px solid #1e1e1e", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eca6ee" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -904,6 +968,7 @@ export default function SeriesBoxd() {
           onDeleteAccount={async () => { await deleteMyAccount(authUserId); setAccountDeleted(true); setShowSettingsPage(false); }}
           onOpenPrivacy={() => setShowPrivacy(true)} />}
         {showPrivacy && <PrivacyPage onClose={() => setShowPrivacy(false)} />}
+        {showNotifications && <NotificationsPage notifications={notifications} loading={notificationsLoading} onClose={() => setShowNotifications(false)} onOpenNotification={openNotification} />}
         {seeAllPage && <SeeAllPage title={seeAllPage.title} endpoint={seeAllPage.endpoint} inProgressList={seeAllPage.inProgressList} onOpen={(s) => openSeries(s)} onClose={() => setSeeAllPage(null)} />}
         {showUpcomingPage && <UpcomingPage library={library} watchedEpisodes={watchedEpisodes} />}
         {showTVShowsPage && <TVShowsPage watched={watched} watchHistory={watchHistory} openSeries={openSeries} rewatchCounts={rewatchCounts} />}
