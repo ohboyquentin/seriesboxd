@@ -24,7 +24,7 @@ async function fetchAuthors(userIds) {
 }
 
 // Met une ligne de la base au format utilisé par les écrans
-function toReview(row, authors, myId) {
+export function toReview(row, authors, myId) {
   const a = authors[row.user_id] || { name: "Utilisateur", initial: "?", avatarUrl: null };
   const likes = row.review_likes || [];
   const comments = [...(row.review_comments || [])]

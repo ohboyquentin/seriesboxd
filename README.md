@@ -34,7 +34,7 @@ En local, l'app appelle automatiquement le proxy sur le port 3001 (modifiable av
 
 ## Déployer
 
-Chaque push sur `main` est déployé par Vercel. Variable d'environnement à définir dans Vercel :
+Chaque push sur `main` est déployé par Vercel. Avant chaque déploiement, Vercel lance le lint et les tests (`vercel-build` dans `package.json`) : si un test échoue, la mise en ligne est annulée et le site reste sur la version précédente. Variable d'environnement à définir dans Vercel :
 
 | Variable   | Rôle                     |
 |------------|--------------------------|
@@ -42,7 +42,9 @@ Chaque push sur `main` est déployé par Vercel. Variable d'environnement à dé
 
 ## Supabase
 
-- Les données de chaque utilisateur sont stockées dans `profiles.data` (JSON). La copie locale du navigateur est allégée et ne remplace jamais les données en ligne.
+- Les données complètes de chaque utilisateur sont dans `private_profiles` (lisible par le seul propriétaire). `profiles.data` ne contient que la « vitrine » publique (voir `src/lib/publicProfile.js`). La copie locale du navigateur est allégée et ne remplace jamais les données en ligne.
+- Critiques, likes et commentaires : tables `reviews`, `review_likes`, `review_comments`. Notifications : table `notifications`, remplie par des déclencheurs.
+- Scripts SQL de référence dans `supabase/` (déjà appliqués sur la base de production).
 - Les règles d'accès (RLS) de référence sont dans [`supabase/policies.sql`](supabase/policies.sql) : lecture publique, écriture uniquement sur ses propres lignes. Elles sont déjà en place sur la base de production.
 
 ## Scripts
@@ -54,3 +56,4 @@ Chaque push sur `main` est déployé par Vercel. Variable d'environnement à dé
 | `npm run build`   | Build de production dans `dist/`       |
 | `npm run preview` | Prévisualiser le build                 |
 | `npm run lint`    | ESLint                                 |
+| `npm test`        | Tests automatiques (Vitest)            |
