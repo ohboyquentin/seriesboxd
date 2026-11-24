@@ -34,7 +34,7 @@ En local, l'app appelle automatiquement le proxy sur le port 3001 (modifiable av
 
 ## Déployer
 
-Chaque push sur `main` est déployé par Vercel. Variable d'environnement à définir dans Vercel :
+Chaque push sur `main` est déployé par Vercel. Avant chaque déploiement, Vercel lance le lint et les tests (`vercel-build` dans `package.json`) : si un test échoue, la mise en ligne est annulée et le site reste sur la version précédente. Variable d'environnement à définir dans Vercel :
 
 | Variable   | Rôle                     |
 |------------|--------------------------|
@@ -54,3 +54,4 @@ Chaque push sur `main` est déployé par Vercel. Variable d'environnement à dé
 | `npm run build`   | Build de production dans `dist/`       |
 | `npm run preview` | Prévisualiser le build                 |
 | `npm run lint`    | ESLint                                 |
+| `npm test`        | Tests automatiques (Vitest)            |

@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node --env-file-if-exists=.env proxy.js"
+    "start": "node --env-file-if-exists=.env proxy.js",
+    "test": "vitest run",
+    "vercel-build": "npm run lint && npm run test && vite build"
   },
   "dependencies": {
     "@fontsource/dm-sans": "5.3.0",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/react": "16.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -28,6 +31,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "jsdom": "31.0.0",
+    "vite": "^8.0.12",
+    "vitest": "5.1.0"
   }
 }

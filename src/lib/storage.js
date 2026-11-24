@@ -32,7 +32,7 @@ const LOCAL_FIELDS = [
 
 // Fusionne une copie locale plus récente (modifs pas encore envoyées) par-dessus
 // les données complètes de Supabase, sans toucher aux champs « lourds ».
-function mergeLocalIntoRemote(remote, local) {
+export function mergeLocalIntoRemote(remote, local) {
   const merged = { ...remote };
   LOCAL_FIELDS.forEach(f => { if (f !== "library" && local[f] !== undefined) merged[f] = local[f]; });
   if (Array.isArray(local.library)) {
