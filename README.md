@@ -42,7 +42,9 @@ Chaque push sur `main` est déployé par Vercel. Avant chaque déploiement, Verc
 
 ## Supabase
 
-- Les données de chaque utilisateur sont stockées dans `profiles.data` (JSON). La copie locale du navigateur est allégée et ne remplace jamais les données en ligne.
+- Les données complètes de chaque utilisateur sont dans `private_profiles` (lisible par le seul propriétaire). `profiles.data` ne contient que la « vitrine » publique (voir `src/lib/publicProfile.js`). La copie locale du navigateur est allégée et ne remplace jamais les données en ligne.
+- Critiques, likes et commentaires : tables `reviews`, `review_likes`, `review_comments`. Notifications : table `notifications`, remplie par des déclencheurs.
+- Scripts SQL de référence dans `supabase/` (déjà appliqués sur la base de production).
 - Les règles d'accès (RLS) de référence sont dans [`supabase/policies.sql`](supabase/policies.sql) : lecture publique, écriture uniquement sur ses propres lignes. Elles sont déjà en place sur la base de production.
 
 ## Scripts
